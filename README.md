@@ -21,3 +21,19 @@ TokenLab is an open-source research and engineering project for measuring, expla
 
 
 For more info, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+
+## Dashboard development
+
+The Explorer MVP lives in `dashboard/` and uses Astro with a focused React
+island for interactive tokenization. The default comparison is statically
+rendered; encoding data is loaded locally in the browser only when the input
+changes.
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Run `npm test` for byte-safety checks and `npm run build` for the complete
+type-check and production build.

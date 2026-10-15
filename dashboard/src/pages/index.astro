@@ -1,0 +1,43 @@
+---
+import { TokenComparer } from "../components/TokenComparer";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
+
+const description =
+  "Compare how public OpenAI tokenizers split Korean, English, emoji, and mixed-script text—down to token IDs and exact UTF-8 bytes.";
+---
+
+<BaseLayout title="Multilingual Token Explorer" description={description}>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="wordmark" href="/">TokenLab</a>
+      <span>Explorer</span>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <h1 id="page-title">Tokenizer</h1>
+        <p>
+          See how different OpenAI tokenizer families break text into tokens.
+          Everything runs locally in your browser.
+        </p>
+      </section>
+
+      <TokenComparer
+        client:visible
+        initialText={INITIAL_TEXT}
+        initialResults={INITIAL_RESULTS}
+      />
+
+      <p class="method-note">
+        Plain-text results from <code>js-tiktoken@1.0.21</code>. This is local
+        tokenizer output, not hosted inference or an API token count.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      Investigating the hidden cost of language in AI.
+    </footer>
+  </div>
+</BaseLayout>
+

@@ -9,3 +9,6 @@ models/
 *.pt
 *.pth
 .env
+dashboard/.astro/
+dashboard/dist/
+dashboard/node_modules/
