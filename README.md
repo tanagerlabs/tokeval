@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/token-mark.svg" width="480" alt="TokenLab logo">
-</p>
-
 # TokenLab
 
 *Investigating the hidden cost of language in AI.*
