@@ -1,0 +1,5 @@
+GPU: NVIDIA GeForce RTX 5090
+Architecture: NVIDIA Blackwell
+GPU memory: 32607 MiB
+NVIDIA driver: 580.159.03
+Maximum CUDA version supported by driver: 13.0

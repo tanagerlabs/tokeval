@@ -1,0 +1,7 @@
+Architecture: x86_64
+CPU model: AMD Ryzen Threadripper 7960X
+Physical cores: 24
+Logical CPUs: 48
+Threads per core: 2
+Sockets: 1
+L3 cache: 128 MiB

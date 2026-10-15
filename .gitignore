@@ -1,0 +1,11 @@
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+data/raw/
+data/processed/
+models/
+*.safetensors
+*.pt
+*.pth
+.env
