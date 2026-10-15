@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/token-mark.svg" width="560" alt="Three UTF-8 byte pieces forming a token">
+  <img src="docs/assets/token-mark.svg" width="480" alt="TokenLab logo">
 </p>
 
 # TokenLab

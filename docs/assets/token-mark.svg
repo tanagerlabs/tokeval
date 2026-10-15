@@ -1,30 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="150" viewBox="0 0 640 150" role="img" aria-labelledby="title desc">
-  <title id="title">TokenLab token mark</title>
-  <desc id="desc">Three UTF-8 byte chips flow into a single token.</desc>
-  <defs>
-    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0 0 8 4 0 8Z" fill="#64748b"/>
-    </marker>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="140" viewBox="0 0 640 140" role="img" aria-labelledby="title desc">
+  <title id="title">TokenLab logo</title>
+  <desc id="desc">A segmented token symbol beside the TokenLab wordmark.</desc>
+  <style>
+    .word { fill: #1e293b; }
+    @media (prefers-color-scheme: dark) {
+      .word { fill: #f1f5f9; }
+    }
+  </style>
 
-  <g transform="translate(40 45)">
-    <rect width="72" height="42" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
-    <rect x="84" width="72" height="42" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
-    <rect x="168" width="72" height="42" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
-    <g fill="#334155" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="14" font-weight="600">
-      <text x="36" y="26" text-anchor="middle">EC</text>
-      <text x="120" y="26" text-anchor="middle">95</text>
-      <text x="204" y="26" text-anchor="middle">88</text>
-    </g>
-    <text x="120" y="67" text-anchor="middle" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12" font-weight="500" letter-spacing="1.4">UTF-8 BYTES</text>
+  <g transform="translate(38 34)">
+    <rect width="92" height="72" rx="22" fill="#4f46e5"/>
+    <rect x="1" y="1" width="90" height="70" rx="21" fill="none" stroke="#ffffff" stroke-opacity=".25"/>
+    <rect x="20" y="22" width="14" height="28" rx="5" fill="#ffffff" fill-opacity=".7"/>
+    <rect x="39" y="16" width="14" height="40" rx="5" fill="#ffffff"/>
+    <rect x="58" y="22" width="14" height="28" rx="5" fill="#ffffff" fill-opacity=".7"/>
   </g>
 
-  <path d="M300 66H356" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-
-  <g transform="translate(376 30)">
-    <rect width="224" height="72" rx="20" fill="#4f46e5"/>
-    <rect x="1" y="1" width="222" height="70" rx="19" fill="none" stroke="#ffffff" stroke-opacity=".22"/>
-    <text x="112" y="43" text-anchor="middle" fill="#fff" font-family="DejaVu Sans Mono, monospace" font-size="18" font-weight="700" letter-spacing="2">TOKEN</text>
-    <text x="112" y="95" text-anchor="middle" fill="#64748b" font-family="DejaVu Sans Mono, monospace" font-size="12" font-weight="500" letter-spacing="1.4">REVERSIBLE</text>
-  </g>
+  <text class="word" x="154" y="87" font-family="DejaVu Sans, sans-serif" font-size="52" font-weight="700">Token</text>
+  <text x="319" y="87" fill="#6366f1" font-family="DejaVu Sans, sans-serif" font-size="52" font-weight="700">Lab</text>
 </svg>
