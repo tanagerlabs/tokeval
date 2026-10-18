@@ -6,7 +6,7 @@ import {
 import { tokenizeOpenModels } from "../src/lib/open-model-tokenizers";
 import { ENCODING_NAMES } from "../src/lib/tokenizer";
 
-const runRemoteTests = process.env.LLMTOKENLAB_REMOTE_TOKENIZER_TESTS === "1";
+const runRemoteTests = process.env.TOKEVAL_REMOTE_TOKENIZER_TESTS === "1";
 
 describe.runIf(runRemoteTests)("pinned open-model tokenizers", () => {
   it(

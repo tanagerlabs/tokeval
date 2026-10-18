@@ -7,11 +7,11 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const socialTitle = `${title} — LLMTokenLab`;
+const socialTitle = `${title} — TokEval`;
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "LLMTokenLab Explorer",
+  name: "TokEval Explorer",
   applicationCategory: "EducationalApplication",
   description,
   browserRequirements: "Requires JavaScript for live tokenization",
@@ -28,7 +28,7 @@ const structuredData = {
       (() => {
         let savedTheme = null;
         try {
-          savedTheme = localStorage.getItem("llmtokenlab-theme");
+          savedTheme = localStorage.getItem("tokeval-theme");
         } catch {
           // Use the system preference when storage is unavailable.
         }

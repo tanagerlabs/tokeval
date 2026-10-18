@@ -2,6 +2,7 @@ import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 
 export default defineConfig({
+  site: "https://tokeval.dev",
   integrations: [react()],
   output: "static",
   build: {

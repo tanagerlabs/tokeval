@@ -27,7 +27,7 @@ export function TokenComparer({
   );
   const [text, setText] = useState(initialText);
   const [results, setResults] = useState(initialResults);
-  const [hiddenTokenizerIds, setHiddenTokenizerIds] = useState<Set<string>>(
+  const [reducedTokenizerIds, setReducedTokenizerIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [retryVersion, setRetryVersion] = useState(0);
@@ -73,7 +73,7 @@ export function TokenComparer({
   }, [retryVersion, text]);
 
   function toggleTokenizer(tokenizerId: string): void {
-    setHiddenTokenizerIds((current) => {
+    setReducedTokenizerIds((current) => {
       const next = new Set(current);
       if (next.has(tokenizerId)) next.delete(tokenizerId);
       else next.add(tokenizerId);
@@ -83,16 +83,13 @@ export function TokenComparer({
 
   const byteCount = new TextEncoder().encode(text).length;
   const characterCount = Array.from(text).length;
-  const visibleResults = results.filter(
-    (result) => !hiddenTokenizerIds.has(resultKey(result)),
-  );
-  const tokenCounts = visibleResults.map((result) => result.tokens.length);
+  const tokenCounts = results.map((result) => result.tokens.length);
   const minimumTokens = tokenCounts.length > 0 ? Math.min(...tokenCounts) : 0;
   const maximumTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
   const comparisonSummary =
     tokenCounts.length > 0
-      ? `${visibleResults.length} shown · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
-      : "0 tokenizers shown";
+      ? `${results.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
+      : "0 models";
   const hasOpenResults = results.some((result) =>
     OPEN_MODEL_PROFILES.some((profile) => profile.id === result.profile.id),
   );
@@ -141,24 +138,17 @@ export function TokenComparer({
       <div className={`results-list ${status === "loading" ? "is-loading" : ""}`}>
         {results.map((result) => {
           const tokenizerId = resultKey(result);
-          const isHidden = hiddenTokenizerIds.has(tokenizerId);
+          const isReduced = reducedTokenizerIds.has(tokenizerId);
+          const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${result.profile.modelExamples}`;
 
           return (
             <article
-              className={`result-panel ${isHidden ? "result-panel--hidden" : ""}`}
+              className={`result-panel ${isReduced ? "result-panel--reduced" : ""}`}
               key={tokenizerId}
             >
               <header className="result-panel__header">
                 <div className="result-panel__identity">
                   <ProviderLogo provider={result.profile.provider} />
-                  <button
-                    className="result-panel__toggle"
-                    type="button"
-                    aria-expanded={!isHidden}
-                    onClick={() => toggleTokenizer(tokenizerId)}
-                  >
-                    {isHidden ? "Show" : "Hide"}
-                  </button>
                   <div className="result-panel__name">
                     <h2>{result.profile.modelExamples}</h2>
                     <code>{result.profile.encoding}</code>
@@ -169,10 +159,30 @@ export function TokenComparer({
                     <strong>{result.tokens.length}</strong>
                     {result.tokens.length === 1 ? " token" : " tokens"}
                   </p>
+                  <button
+                    className="result-panel__toggle"
+                    type="button"
+                    aria-expanded={!isReduced}
+                    aria-label={toggleLabel}
+                    title={toggleLabel}
+                    onClick={() => toggleTokenizer(tokenizerId)}
+                  >
+                    <svg
+                      className="result-panel__toggle-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="m7 14 5-5 5 5" />
+                    </svg>
+                  </button>
                 </div>
               </header>
-              {!isHidden && (
-                <>
+              <div
+                className="result-panel__body"
+                aria-hidden={isReduced}
+                inert={isReduced}
+              >
+                <div className="result-panel__body-inner">
                   <TokenCard result={result} />
                   <p className="result-panel__revision">
                     Local · {result.profile.sourceUrl ? (
@@ -185,8 +195,8 @@ export function TokenComparer({
                       </a>
                     ) : result.tokenizerRevision}
                   </p>
-                </>
-              )}
+                </div>
+              </div>
             </article>
           );
         })}
@@ -194,20 +204,12 @@ export function TokenComparer({
         {!hasOpenResults &&
           OPEN_MODEL_PROFILES.map((profile) => (
             <article
-              className={`result-panel result-panel--pending ${hiddenTokenizerIds.has(profile.id) ? "result-panel--hidden" : ""}`}
+              className={`result-panel result-panel--pending ${reducedTokenizerIds.has(profile.id) ? "result-panel--reduced" : ""}`}
               key={profile.id}
             >
               <header className="result-panel__header">
                 <div className="result-panel__identity">
                   <ProviderLogo provider={profile.provider} />
-                  <button
-                    className="result-panel__toggle"
-                    type="button"
-                    aria-expanded={!hiddenTokenizerIds.has(profile.id)}
-                    onClick={() => toggleTokenizer(profile.id)}
-                  >
-                    {hiddenTokenizerIds.has(profile.id) ? "Show" : "Hide"}
-                  </button>
                   <div className="result-panel__name">
                     <h2>{profile.modelExamples}</h2>
                     <code>{profile.encoding}</code>
@@ -217,6 +219,22 @@ export function TokenComparer({
                   <p>
                     {status === "error" ? "Unavailable" : "Loading tokenizer…"}
                   </p>
+                  <button
+                    className="result-panel__toggle"
+                    type="button"
+                    aria-expanded={!reducedTokenizerIds.has(profile.id)}
+                    aria-label={`${reducedTokenizerIds.has(profile.id) ? "Expand" : "Reduce"} ${profile.modelExamples}`}
+                    title={`${reducedTokenizerIds.has(profile.id) ? "Expand" : "Reduce"} ${profile.modelExamples}`}
+                    onClick={() => toggleTokenizer(profile.id)}
+                  >
+                    <svg
+                      className="result-panel__toggle-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="m7 14 5-5 5 5" />
+                    </svg>
+                  </button>
                 </div>
               </header>
             </article>

@@ -12,3 +12,4 @@ models/
 dashboard/.astro/
 dashboard/dist/
 dashboard/node_modules/
+/FORECASTING.md

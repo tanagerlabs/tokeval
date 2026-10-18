@@ -1,6 +1,6 @@
 # Dashboard Plan
 
-> Living plan for the LLMTokenLab Explorer dashboard (`dashboard/`). Maintained by the planning agent; implemented by the coding agent; verified by the testing agent. Statuses follow AGENTS.md: planned / attempted / completed / measured.
+> Living plan for the TokEval Explorer dashboard (`dashboard/`). Maintained by the planning agent; implemented by the coding agent; verified by the testing agent. Statuses follow AGENTS.md: planned / attempted / completed / measured.
 
 ## Current state (completed)
 
@@ -66,7 +66,7 @@ Privacy disclosure (required): once hosted rows exist, the page can no longer un
 Repo layout:
 
 ```
-llmtokenlab/
+tokeval/
 ├── dashboard/          # unchanged
 ├── server/             # edge endpoint, provider adapters, caching, rate limiting
 │   ├── .env.example    # names of required secrets, no values

@@ -1,5 +1,6 @@
 ---
 import { TokenComparer } from "../components/TokenComparer";
+import GitHubLink from "../components/GitHubLink.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
@@ -12,8 +13,11 @@ const currentYear = new Date().getFullYear();
 <BaseLayout title="Multilingual Token Explorer" description={description}>
   <div class="page-shell">
     <header class="site-header">
-      <a class="wordmark" href="/">LLMTokenLab</a>
-      <ThemeToggle />
+      <a class="wordmark" href="/">TokEval</a>
+      <nav class="site-header__actions" aria-label="Site links">
+        <GitHubLink />
+        <ThemeToggle />
+      </nav>
     </header>
 
     <main>
@@ -41,7 +45,7 @@ const currentYear = new Date().getFullYear();
       />
     </main>
 
-    <footer class="site-footer">© LLMTokenLab {currentYear}</footer>
+    <footer class="site-footer">© TokEval {currentYear}</footer>
   </div>
 </BaseLayout>
 

@@ -49,7 +49,7 @@
 
     if (persist) {
       try {
-        localStorage.setItem("llmtokenlab-theme", theme);
+        localStorage.setItem("tokeval-theme", theme);
       } catch {
         // The selected theme still applies when storage is unavailable.
       }
@@ -71,7 +71,7 @@
     (event) => {
       let savedTheme: string | null = null;
       try {
-        savedTheme = localStorage.getItem("llmtokenlab-theme");
+        savedTheme = localStorage.getItem("tokeval-theme");
       } catch {
         // Follow the system theme when storage is unavailable.
       }

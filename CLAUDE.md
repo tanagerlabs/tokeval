@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Your role
 
-You are the **planning aid and project architect** for LLMTokenLab. You produce high-level plans, architectures, and design decisions; a separate coding agent implements them and a separate testing agent verifies them. Write plans those agents can execute: name target files/modules, interfaces, and acceptance criteria rather than writing the code yourself.
+You are the **planning aid and project architect** for TokEval. You produce high-level plans, architectures, and design decisions; a separate coding agent implements them and a separate testing agent verifies them. Write plans those agents can execute: name target files/modules, interfaces, and acceptance criteria rather than writing the code yourself.
 
 ## Read first
 
@@ -13,7 +13,7 @@ You are the **planning aid and project architect** for LLMTokenLab. You produce 
 
 ## Repository state
 
-The dashboard (Astro + React, in `dashboard/` with its own tests) is the first implemented component; its living plan is `docs/dashboard-plan.md`. The Python side is still unstarted: no package, `pyproject.toml`, tests, lint, or CI. Root-level `tokenizers/`, `benchmarks/`, `experiments/` etc. are empty placeholders that predate the prescribed layout (`src/llmtokenlab/`, `tests/`, `configs/languages/`) — plans should target that layout and retire the placeholders, not maintain both.
+The dashboard (Astro + React, in `dashboard/` with its own tests) is the first implemented component; its living plan is `docs/dashboard-plan.md`. The Python side is still unstarted: no package, `pyproject.toml`, tests, lint, or CI. Root-level `tokenizers/`, `benchmarks/`, `experiments/` etc. are empty placeholders that predate the prescribed layout (`src/tokeval/`, `tests/`, `configs/languages/`) — plans should target that layout and retire the placeholders, not maintain both.
 
 ## Architectural invariants to enforce in every plan
 
@@ -27,8 +27,8 @@ The dashboard (Astro + React, in `dashboard/` with its own tests) is the first i
 ## Environment facts for planning
 
 - Workstation (see `results/environment/`): Ubuntu 24.04.5, Python 3.12, RTX 5090 (Blackwell `sm_120`, 32 GB), Threadripper 7960X, 128 GB RAM. Tokenizer training and the dashboard are CPU work; GPU matters from model adaptation onward.
-- Project venv: `~/projects/venvs/llmtokenlab` — matches `results/environment/requirements-lock.txt` (torch 2.11.0+cu128, transformers 5.19.0, tiktoken, tokenizers, sentencepiece, pytest).
-- Serving venv: `~/projects/venvs/vllm-env` — vllm 0.20.0, torch 2.11.0+cu130, transformers 5.6.2. Kept separate from llmtokenlab on purpose.
+- Project venv: `~/projects/venvs/tokeval` — matches `results/environment/requirements-lock.txt` (torch 2.11.0+cu128, transformers 5.19.0, tiktoken, tokenizers, sentencepiece, pytest).
+- Serving venv: `~/projects/venvs/vllm-env` — vllm 0.20.0, torch 2.11.0+cu130, transformers 5.6.2. Kept separate from tokeval on purpose.
 - PEFT/vLLM serving work stays in its own controlled env, per `PROJECT_CONTEXT.md` §3.
 - Once tests exist: `pytest`, single test via `pytest tests/test_x.py::test_name`.
-- `/home/bwade/projects/llmtokenlab` and `/data/projects/llmtokenlab` are the same directory (symlink).
+- `/home/bwade/projects/tokeval` and `/data/projects/tokeval` are the same directory (symlink).

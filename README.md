@@ -1,8 +1,8 @@
-# LLMTokenLab
+# TokEval
 
 *Investigating the hidden cost of language in AI.*
 
-LLMTokenLab is an open-source research and engineering project for measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency. Korean is the first optimization case study, with English as an initial baseline and support for more languages designed to remain extensible.
+TokEval is an open-source research and engineering project for measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency. Korean is the first optimization case study, with English as an initial baseline and support for more languages designed to remain extensible.
 
 ## What we're building
 

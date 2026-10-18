@@ -1,8 +1,8 @@
-# LLMTokenLab — Project Context
+# TokEval — Project Context
 
 > **Purpose:** A living reference for contributors, coding agents, and future conversations. This document captures project goals and decisions discussed so far, and distinguishes plans from verified results.
 
-**Project name:** LLMTokenLab (`llmtokenlab`)
+**Project name:** TokEval (`tokeval`)
 
 **Working tagline:** *Investigating the hidden cost of language in AI.*
 
@@ -10,7 +10,7 @@
 
 ## 1. Mission and motivation
 
-LLMTokenLab is an open-source research and engineering project for **measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency**.
+TokEval is an open-source research and engineering project for **measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency**.
 
 LLMs consume token sequences, and many APIs bill by token. Tokenizer vocabularies and merge rules reflect their training corpora, often giving well-represented languages (notably English) more efficient representations than less-represented languages. The resulting *tokenization tax* can mean more tokens to express comparable content, increasing API costs, effective context-window usage, prefill work, KV-cache requirements, and/or autoregressive decoding steps. Actual inference impact depends on the model, engine, and workload.
 
@@ -27,12 +27,12 @@ Token-count inequality is **not inherently caused by non-Latin scripts**. Corpus
 
 ## 2. Intended deliverables
 
-### A. LLMTokenLab Explorer — interactive dashboard
+### A. TokEval Explorer — interactive dashboard
 
 Build an approachable, public-facing, **side-by-side tokenizer visualization**:
 
 - Enter a phrase (initially Korean; later any supported language).
-- Compare tokenization from a mainstream LLM tokenizer against an experimental LLMTokenLab tokenizer.
+- Compare tokenization from a mainstream LLM tokenizer against an experimental TokEval tokenizer.
 - Show actual token count, token IDs when available, segmentation, exact bytes/boundaries, and visually highlighted fragments.
 - Allow model/tokenizer selection, display relative token counts, and later support batch comparisons and estimated pricing.
 - Label comparisons precisely: **tokenizer-level simulation** versus **hosted API count** versus **real model inference**.
@@ -42,7 +42,7 @@ Build an approachable, public-facing, **side-by-side tokenizer visualization**:
 
 **Critical Unicode rule:** Byte-level tokens may split UTF-8 code points. Retain byte spans and raw bytes. Do **not** assume each token decodes independently to a valid Unicode string or that each token boundary corresponds to a displayable Hangul syllable.
 
-### B. LLMTokenLab Bench — reproducible multilingual evaluation
+### B. TokEval Bench — reproducible multilingual evaluation
 
 Benchmark tokenization and runtime behavior using corpora across genres (conversational, formal, technical, news, informal/social, and mixed-script text) and a human-reviewed or otherwise quality-controlled parallel-text subset.
 
@@ -57,7 +57,7 @@ Measure:
 
 The overarching metric is **cost per successful task**, not merely tokens per text. Token efficiency, model accuracy, serving speed, and energy must be evaluated separately before making causal claims.
 
-### C. LLMTokenLab Train — tokenizer research and model adaptation
+### C. TokEval Train — tokenizer research and model adaptation
 
 Explore and evaluate rather than assume benefits from:
 
@@ -75,7 +75,7 @@ Suggested initial controlled study:
 
 Match training data and comparable compute budgets, and report both source-text-matched and token-budget-matched comparisons where possible. **A tokenizer cannot simply be swapped into a pretrained model without appropriately adapting its embeddings/model.**
 
-### D. LLMTokenLab Serve — GPU systems economics
+### D. TokEval Serve — GPU systems economics
 
 Deploy baseline and suitably adapted models on an inference engine such as vLLM (subject to model/tokenizer support). Compare **equivalent user tasks**, not only equal raw token counts. Control for caching, prompts, hardware, quantization, batching, concurrency, output length, and generation settings.
 
@@ -101,7 +101,7 @@ Measure time-to-first-token, end-to-end latency, goodput, throughput, VRAM/KV-ca
 ### Environment setup status and practical notes
 
 - Linux Python **3.12** was encountered during environment creation; actual OS/distribution and installed Python/PyTorch versions should be verified rather than assumed.
-- Planned virtual environment: `~/venvs/llmtokenlab`.
+- Planned virtual environment: `~/projects/venvs/tokeval`.
 - An initial `python3 -m venv` attempt yielded an incomplete `bin/` directory containing only `python3.12`; verify the Python `venv`/`ensurepip` installation (Ubuntu/Debian often need `python3.12-venv`), then recreate the environment. **Successful repair was not confirmed in the discussion.**
 - RTX 5090 has NVIDIA Blackwell compute capability **12.0 (`sm_120`)**. Use compatible NVIDIA drivers and a recent PyTorch CUDA build (CUDA **12.8+** is a useful baseline), then run an actual CUDA matrix multiplication rather than relying only on `torch.cuda.is_available()`.
 - `nvidia-smi` reported approximately **1,678 MiB used by Xorg** at one point. This is reasonable desktop overhead (~5% of 32 GB). Leave desktop running for early work; headless operation can be revisited for memory-intensive workloads.
@@ -122,9 +122,9 @@ If on Ubuntu/Debian with Python 3.12:
 sudo apt update
 sudo apt install -y python3.12-venv python3-pip git build-essential cmake pkg-config
 # Only remove the old directory if there is nothing important to preserve:
-rm -rf ~/venvs/llmtokenlab
-python3.12 -m venv ~/venvs/llmtokenlab
-source ~/venvs/llmtokenlab/bin/activate
+rm -rf ~/projects/venvs/tokeval
+python3.12 -m venv ~/projects/venvs/tokeval
+source ~/projects/venvs/tokeval/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 ```
 
@@ -153,12 +153,12 @@ Initial Python libraries: `tiktoken`, `tokenizers`, `sentencepiece`, `transforme
 ## 4. Proposed architecture
 
 ```text
-llmtokenlab/
+tokeval/
 ├── README.md
 ├── PROJECT_CONTEXT.md          # This document
 ├── AGENTS.md                   # Concise guidance for coding agents
 ├── pyproject.toml
-├── src/llmtokenlab/
+├── src/tokeval/
 │   ├── tokenizers/            # Adapters: tiktoken, HF, custom
 │   ├── benchmarks/            # Metric definitions and runners
 │   ├── datasets/              # Corpus loaders + aligned text
@@ -176,7 +176,7 @@ llmtokenlab/
 
 **Dashboard candidate stack:** React/Next.js frontend + Python/FastAPI backend. Keep tokenizer adapters behind a shared interface. Define response fields such as `tokenizer_id`, `input_text`, `token_count`, `token_ids` (optional), `byte_spans` (optional), `count_source`, `supports_boundaries`, and tokenizer/model revision. Do not force commercial count-only endpoints to fabricate token IDs or spans.
 
-Ensure datasets and model checkpoints are ignored by Git unless intentionally published and licensed; use the `LLMTokenLab` name consistently in public branding.
+Ensure datasets and model checkpoints are ignored by Git unless intentionally published and licensed; use the `TokEval` name consistently in public branding.
 
 ## 5. Research methodology and guardrails
 
@@ -214,7 +214,7 @@ Prior research topics raised in discussion include Korean-specific tokenization 
 
 **Exit criterion:** Successful CUDA matrix multiplication and working Python/tokenization environment.
 
-### Phase 1 — LLMTokenLab Explorer MVP
+### Phase 1 — TokEval Explorer MVP
 
 - Integrate OpenAI `cl100k_base` and `o200k_base` locally via `tiktoken`.
 - Add at least one Hugging Face open-weight tokenizer adapter.
@@ -223,7 +223,7 @@ Prior research topics raised in discussion include Korean-specific tokenization 
 
 **Exit criterion:** A user can enter Korean text and see reproducible, real tokenization comparisons for two selectable tokenizers.
 
-### Phase 2 — LLMTokenLab Bench
+### Phase 2 — TokEval Bench
 
 - Assemble legally usable Korean, Turkish, and English datasets across genres plus an aligned multilingual subset.
 - Publish baseline tokenization efficiency and CPU throughput measurements, including distribution and failure-case analysis.
@@ -273,9 +273,9 @@ The dashboard should become a visual centerpiece for the blog series, showing *a
 **Immediate next actions:**
 
 1. Confirm the Linux OS, driver, working Python virtual environment and PyTorch CUDA test.
-2. Initialize the generalized `llmtokenlab` repository structure and developer tooling.
+2. Initialize the generalized `tokeval` repository structure and developer tooling.
 3. Implement two tokenizer adapters with real byte-safe token breakdowns.
-4. Build the simplest side-by-side LLMTokenLab Explorer and start a small Korean benchmark corpus.
+4. Build the simplest side-by-side TokEval Explorer and start a small Korean benchmark corpus.
 
 ---
 
