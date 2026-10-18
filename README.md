@@ -1,8 +1,8 @@
-# TokenLab
+# LLMTokenLab
 
 *Investigating the hidden cost of language in AI.*
 
-TokenLab is an open-source research and engineering project for measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency. Korean is the first optimization case study, with English as an initial baseline and support for more languages designed to remain extensible.
+LLMTokenLab is an open-source research and engineering project for measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency. Korean is the first optimization case study, with English as an initial baseline and support for more languages designed to remain extensible.
 
 ## What we're building
 

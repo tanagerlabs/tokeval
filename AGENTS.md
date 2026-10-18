@@ -3,12 +3,12 @@
 ## Start here
 
 - Read `PROJECT_CONTEXT.md` before making architectural or research decisions. It is the source of truth for scope, terminology, phases, and known-versus-planned work.
-- TokenLab measures multilingual tokenization efficiency and its effect on model quality and serving cost. Korean is the first optimization case; English is the baseline comparison language.
+- LLMTokenLab measures multilingual tokenization efficiency and its effect on model quality and serving cost. Korean is the first optimization case; English is the baseline comparison language.
 - The repository is in its initial setup phase. Do not describe planned work as implemented or experimental targets as measured results.
 
 ## Standard patterns
 
-- Keep reusable Python code under `src/tokenlab/`, tests under `tests/`, language settings under `configs/languages/`, and reproducible outputs under `results/`.
+- Keep reusable Python code under `src/llmtokenlab/`, tests under `tests/`, language settings under `configs/languages/`, and reproducible outputs under `results/`.
 - Keep tokenizer integrations behind a shared adapter interface. Report the tokenizer/model revision and distinguish local tokenization, hosted count-only APIs, and real inference.
 - Preserve raw bytes and byte spans. A token may split a UTF-8 code point, so never assume that every token decodes independently to valid text.
 - Prefer configuration-driven language support over Korean-specific branches in shared code. Additional language support will be added in the future.

@@ -4,11 +4,22 @@ export const ENCODING_NAMES = ["o200k_base", "cl100k_base"] as const;
 
 export type EncodingName = (typeof ENCODING_NAMES)[number];
 
+export type TokenizerProvider =
+  | "openai"
+  | "deepseek"
+  | "meta"
+  | "mistral"
+  | "cohere"
+  | "xai";
+
 export interface TokenizerProfile {
-  encoding: EncodingName;
+  id: string;
+  provider: TokenizerProvider;
+  encoding: string;
   label: string;
   modelExamples: string;
   accent: "coral" | "blue";
+  sourceUrl?: string;
 }
 
 export interface TokenPiece {
@@ -30,12 +41,16 @@ export interface TokenizationResult {
 
 export const TOKENIZER_PROFILES: Record<EncodingName, TokenizerProfile> = {
   o200k_base: {
+    id: "openai-o200k",
+    provider: "openai",
     encoding: "o200k_base",
     label: "OpenAI o200k",
     modelExamples: "GPT-4o · GPT-4.1 · GPT-5",
     accent: "coral",
   },
   cl100k_base: {
+    id: "openai-cl100k",
+    provider: "openai",
     encoding: "cl100k_base",
     label: "OpenAI cl100k",
     modelExamples: "GPT-4 · GPT-4 Turbo",

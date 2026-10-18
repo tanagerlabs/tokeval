@@ -1,25 +1,36 @@
 ---
 import { TokenComparer } from "../components/TokenComparer";
+import ThemeToggle from "../components/ThemeToggle.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
 
 const description =
-  "Compare how public OpenAI tokenizers split Korean, English, emoji, and mixed-script text—down to token IDs and exact UTF-8 bytes.";
+  "Compare how OpenAI, DeepSeek, Meta Llama, Mistral, Cohere, and xAI tokenizers split multilingual text—down to token IDs and exact UTF-8 bytes.";
+const currentYear = new Date().getFullYear();
 ---
 
 <BaseLayout title="Multilingual Token Explorer" description={description}>
   <div class="page-shell">
     <header class="site-header">
-      <a class="wordmark" href="/">TokenLab</a>
-      <span>Explorer</span>
+      <a class="wordmark" href="/">LLMTokenLab</a>
+      <ThemeToggle />
     </header>
 
     <main>
       <section class="intro" aria-labelledby="page-title">
         <h1 id="page-title">Tokenizer</h1>
         <p>
-          See how different OpenAI tokenizer families break text into tokens.
-          Everything runs locally in your browser.
+          See how model families from different providers break text into
+          tokens. Token IDs appear beneath each piece. Angle brackets indicate
+          a token containing only part of a UTF-8 character; exact bytes are
+          shown instead of invented text. Open-model vocabulary files are
+          downloaded from their pinned public repositories, cached by the
+          browser, and run in a local worker. Input text is not sent to a model
+          API. Plain-text results come from pinned public tokenizer artifacts
+          using <code>js-tiktoken@1.0.21</code>,
+          <code>@huggingface/tokenizers@0.2.0</code>, and
+          <code>@sctg/sentencepiece-js@1.3.3</code>. These are local tokenizer
+          outputs, not hosted inference or API token counts.
         </p>
       </section>
 
@@ -28,16 +39,9 @@ const description =
         initialText={INITIAL_TEXT}
         initialResults={INITIAL_RESULTS}
       />
-
-      <p class="method-note">
-        Plain-text results from <code>js-tiktoken@1.0.21</code>. This is local
-        tokenizer output, not hosted inference or an API token count.
-      </p>
     </main>
 
-    <footer class="site-footer">
-      Investigating the hidden cost of language in AI.
-    </footer>
+    <footer class="site-footer">© LLMTokenLab {currentYear}</footer>
   </div>
 </BaseLayout>
 

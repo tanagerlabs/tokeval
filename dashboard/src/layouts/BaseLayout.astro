@@ -7,11 +7,11 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const socialTitle = `${title} — TokenLab`;
+const socialTitle = `${title} — LLMTokenLab`;
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "TokenLab Explorer",
+  name: "LLMTokenLab Explorer",
   applicationCategory: "EducationalApplication",
   description,
   browserRequirements: "Requires JavaScript for live tokenization",
@@ -24,6 +24,29 @@ const structuredData = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <meta name="theme-color" content="#f4f0e8" />
+    <script is:inline>
+      (() => {
+        let savedTheme = null;
+        try {
+          savedTheme = localStorage.getItem("llmtokenlab-theme");
+        } catch {
+          // Use the system preference when storage is unavailable.
+        }
+
+        const theme =
+          savedTheme === "light" || savedTheme === "dark"
+            ? savedTheme
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute("content", theme === "dark" ? "#181815" : "#fffcf0");
+      })();
+    </script>
     <meta name="description" content={description} />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />

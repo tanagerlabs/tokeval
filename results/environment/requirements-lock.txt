@@ -1,4 +1,4 @@
-# Libraries directly relevant to TokenLab research trials.
+# Libraries directly relevant to LLMTokenLab research trials.
 accelerate==1.15.0
 datasets==5.1.0
 evaluate==0.4.6
