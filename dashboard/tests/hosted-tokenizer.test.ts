@@ -4,6 +4,7 @@ import {
   HOSTED_MODEL_PROFILES,
   HostedApiError,
   hostedTokenizerInternals,
+  readHostedSessionCache,
 } from "../src/lib/hosted-tokenizer";
 import { INITIAL_HOSTED_RESULTS } from "../src/lib/initial-hosted-results";
 import { INITIAL_TEXT } from "../src/lib/initial-tokenization";
@@ -272,5 +273,83 @@ describe("hosted tokenizer client", () => {
 
     expect(upstream).toHaveBeenCalledOnce();
     expect(hostedTokenizerInternals.sessionCacheSize).toBe(1);
+  });
+
+  test("caches providers independently and requests only prior failures", async () => {
+    const profiles = HOSTED_MODEL_PROFILES.filter((profile) =>
+      profile.id === "anthropic-default" || profile.id === "grok-default"
+    );
+    const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as {
+        providers: Array<{ provider: string; model: string }>;
+      };
+      const isFirstRequest = upstream.mock.calls.length === 1;
+      expect(request.providers).toEqual(isFirstRequest
+        ? [
+            { provider: "anthropic", model: "anthropic-default" },
+            { provider: "xai", model: "grok-default" },
+          ]
+        : [{ provider: "anthropic", model: "anthropic-default" }]);
+
+      return Response.json({
+        results: isFirstRequest
+          ? [
+              {
+                requested_model: "anthropic-default",
+                resolved_model: "claude-test",
+                status: "unavailable",
+                token_count: null,
+                tokens: null,
+                cache: "disabled",
+                error: { code: "UPSTREAM_TIMEOUT", retryable: true },
+              },
+              {
+                requested_model: "grok-default",
+                resolved_model: "grok-test",
+                status: "ok",
+                token_count: 1,
+                content_token_count: 1,
+                content_count_kind: "exact",
+                tokens: [{
+                  id: 1,
+                  bytes: [120],
+                  text: "x",
+                  byte_start: 0,
+                  byte_end: 1,
+                }],
+                cache: "disabled",
+              },
+            ]
+          : [{
+              requested_model: "anthropic-default",
+              resolved_model: "claude-test",
+              status: "ok",
+              token_count: 2,
+              content_token_count: 1,
+              content_count_kind: "estimated",
+              tokens: null,
+              cache: "miss",
+            }],
+      });
+    });
+    vi.stubGlobal("fetch", upstream);
+
+    const first = await compareHostedText(
+      "x",
+      new AbortController().signal,
+      profiles,
+    );
+    expect(first.map((result) => result.status)).toEqual(["unavailable", "ok"]);
+    expect(readHostedSessionCache("x", profiles)).toBeNull();
+
+    const second = await compareHostedText(
+      "x",
+      new AbortController().signal,
+      profiles,
+    );
+    expect(second.map((result) => result.status)).toEqual(["ok", "ok"]);
+    expect(upstream).toHaveBeenCalledTimes(2);
+    expect(readHostedSessionCache("x", profiles)).toEqual(second);
+    expect(hostedTokenizerInternals.sessionCacheSize).toBe(2);
   });
 });

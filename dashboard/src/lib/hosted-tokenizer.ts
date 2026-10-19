@@ -77,26 +77,27 @@ export class HostedApiError extends Error {
   }
 }
 
-const SESSION_CACHE_LIMIT = 50;
+const SESSION_CACHE_ENTRY_LIMIT = 150;
 const SESSION_CACHE_TOKEN_LIMIT = 20_000;
-const sessionResults = new Map<string, HostedResult[]>();
+const sessionResults = new Map<string, HostedResult>();
 let sessionTokenWeight = 0;
 
-function resultTokenWeight(results: readonly HostedResult[]): number {
-  return results.reduce(
-    (total, result) => total + Math.max(1, result.tokens?.length ?? 0),
-    0,
-  );
+function resultTokenWeight(result: HostedResult): number {
+  return Math.max(1, result.tokens?.length ?? 0);
 }
 
 function sessionCacheKey(
   text: string,
-  profiles: readonly HostedModelProfile[],
+  profile: HostedModelProfile,
 ): string {
-  return `${profiles.map((profile) => profile.id).join(",")}\u0000${text}`;
+  return `${profile.id}\u0000${text}`;
 }
 
-function readSessionCache(key: string): HostedResult[] | null {
+function readSessionResult(
+  text: string,
+  profile: HostedModelProfile,
+): HostedResult | null {
+  const key = sessionCacheKey(text, profile);
   const cached = sessionResults.get(key);
   if (!cached) return null;
   sessionResults.delete(key);
@@ -104,13 +105,14 @@ function readSessionCache(key: string): HostedResult[] | null {
   return cached;
 }
 
-function writeSessionCache(key: string, results: HostedResult[]): void {
+function writeSessionResult(text: string, result: HostedResult): void {
+  const key = sessionCacheKey(text, result.profile);
   const existing = sessionResults.get(key);
   if (existing) sessionTokenWeight -= resultTokenWeight(existing);
-  sessionResults.set(key, results);
-  sessionTokenWeight += resultTokenWeight(results);
+  sessionResults.set(key, result);
+  sessionTokenWeight += resultTokenWeight(result);
   while (
-    sessionResults.size > SESSION_CACHE_LIMIT ||
+    sessionResults.size > SESSION_CACHE_ENTRY_LIMIT ||
     sessionTokenWeight > SESSION_CACHE_TOKEN_LIMIT
   ) {
     const oldest = sessionResults.keys().next().value as string | undefined;
@@ -119,6 +121,16 @@ function writeSessionCache(key: string, results: HostedResult[]): void {
     if (removed) sessionTokenWeight -= resultTokenWeight(removed);
     sessionResults.delete(oldest);
   }
+}
+
+export function readHostedSessionCache(
+  text: string,
+  profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
+): HostedResult[] | null {
+  const cached = profiles.map((profile) => readSessionResult(text, profile));
+  return cached.every((result): result is HostedResult => result !== null)
+    ? cached
+    : null;
 }
 
 function compareEndpoint(): string | null {
@@ -232,9 +244,16 @@ export async function compareHostedText(
   signal: AbortSignal,
   profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
 ): Promise<HostedResult[]> {
-  const cacheKey = sessionCacheKey(text, profiles);
-  const cached = readSessionCache(cacheKey);
-  if (cached) return cached;
+  const cachedByProfile = new Map<string, HostedResult>();
+  const missingProfiles: HostedModelProfile[] = [];
+  for (const profile of profiles) {
+    const cached = readSessionResult(text, profile);
+    if (cached) cachedByProfile.set(profile.id, cached);
+    else missingProfiles.push(profile);
+  }
+  if (missingProfiles.length === 0) {
+    return profiles.map((profile) => cachedByProfile.get(profile.id)!);
+  }
 
   const endpoint = compareEndpoint();
   if (!endpoint) throw new HostedApiError("API_NOT_CONFIGURED");
@@ -246,7 +265,7 @@ export async function compareHostedText(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         text,
-        providers: profiles.map((profile) => ({
+        providers: missingProfiles.map((profile) => ({
           provider: profile.provider,
           model: profile.id,
         })),
@@ -276,15 +295,20 @@ export async function compareHostedText(
   }
 
   const results = body.results.map(parseResult);
-  const selectedResults = profiles.map((profile) => {
+  const selectedResults = missingProfiles.map((profile) => {
     const result = results.find((candidate) => candidate.profile.id === profile.id);
     if (!result) throw new HostedApiError("INVALID_RESPONSE");
     return result;
   });
-  if (selectedResults.every((result) => result.status === "ok")) {
-    writeSessionCache(cacheKey, selectedResults);
+  for (const result of selectedResults) {
+    if (result.status === "ok") writeSessionResult(text, result);
   }
-  return selectedResults;
+  const fetchedByProfile = new Map(
+    selectedResults.map((result) => [result.profile.id, result]),
+  );
+  return profiles.map((profile) =>
+    cachedByProfile.get(profile.id) ?? fetchedByProfile.get(profile.id)!
+  );
 }
 
 export const hostedTokenizerInternals = {

@@ -12,6 +12,7 @@ import {
   compareHostedText,
   HOSTED_MODEL_PROFILES,
   HostedApiError,
+  readHostedSessionCache,
   type HostedResult,
   type HostedStatus,
 } from "../lib/hosted-tokenizer";
@@ -397,6 +398,15 @@ export function TokenComparer({
 
     const tokenizationKey = `hosted:${hostedRetryVersion}:${text}`;
     if (lastHostedTokenizedKey.current === tokenizationKey) {
+      setHostedStatus("ready");
+      setHostedError(null);
+      return;
+    }
+
+    const cachedResults = readHostedSessionCache(text, requestedProfiles);
+    if (cachedResults) {
+      setHostedResults(cachedResults);
+      lastHostedTokenizedKey.current = tokenizationKey;
       setHostedStatus("ready");
       setHostedError(null);
       return;
