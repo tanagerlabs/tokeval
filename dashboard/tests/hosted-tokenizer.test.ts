@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { compareHostedText } from "../src/lib/hosted-tokenizer";
+import { compareHostedText, HostedApiError } from "../src/lib/hosted-tokenizer";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -8,6 +8,7 @@ afterEach(() => {
 describe("hosted tokenizer client", () => {
   test("requests all hosted providers and normalizes count and byte results", async () => {
     const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(_input)).toBe("/api/v1/tokenize/compare");
       const request = JSON.parse(String(init?.body)) as {
         providers: Array<{ provider: string; model: string }>;
       };
@@ -116,5 +117,15 @@ describe("hosted tokenizer client", () => {
 
     expect(results[0]?.error).toEqual({ code: "UPSTREAM_TIMEOUT", retryable: true });
     expect(results[2]?.error).toEqual({ code: "FEATURE_DISABLED", retryable: false });
+  });
+
+  test("turns browser network and CORS failures into an actionable error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
+
+    await expect(
+      compareHostedText("hello", new AbortController().signal),
+    ).rejects.toEqual(expect.objectContaining<Partial<HostedApiError>>({
+      code: "NETWORK_OR_CORS",
+    }));
   });
 });

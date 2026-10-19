@@ -17,6 +17,10 @@ afterEach(() => {
 });
 
 describe("Anthropic adapter", () => {
+  test("uses the current Claude Sonnet model by default", () => {
+    expect(model("anthropic-default").upstreamModel).toBe("claude-sonnet-5-5");
+  });
+
   test("wraps plain text in one user message and normalizes the count", async () => {
     const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -24,13 +28,16 @@ describe("Anthropic adapter", () => {
         model: "claude-test",
         messages: [{ role: "user", content: "hello" }],
       });
-      expect(new Headers(init?.headers).get("x-api-key")).toBe("anthropic-secret");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-api-key")).toBe("anthropic-secret");
+      expect(headers.get("anthropic-workspace-id")).toBe("wrkspc_test");
       return Response.json({ input_tokens: 7 }, { headers: { "request-id": "req-a" } });
     });
     vi.stubGlobal("fetch", upstream);
 
     const env: Env = {
       ANTHROPIC_API_KEY: "anthropic-secret",
+      ANTHROPIC_WORKSPACE_ID: "wrkspc_test",
       ANTHROPIC_MODEL: "claude-test",
     };
     const result = await countAnthropic(env, model("anthropic-default", env), "hello");
@@ -42,9 +49,42 @@ describe("Anthropic adapter", () => {
       provider_request_id: "req-a",
     });
   });
+
+  test("maps a missing workspace selection to a specific error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: "This request must include the anthropic-workspace-id header.",
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    await expect(
+      countAnthropic(
+        { ANTHROPIC_API_KEY: "anthropic-secret" },
+        model("anthropic-default"),
+        "hello",
+      ),
+    ).rejects.toMatchObject({
+      code: "ANTHROPIC_WORKSPACE_REQUIRED",
+      retryable: false,
+    });
+  });
 });
 
 describe("Gemini adapter", () => {
+  test("uses the current Gemini Flash model by default", () => {
+    expect(model("gemini-default").upstreamModel).toBe("gemini-3.8-flash");
+  });
+
   test("keeps the API key out of the URL", async () => {
     const upstream = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(

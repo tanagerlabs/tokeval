@@ -1,9 +1,70 @@
 import { ProviderError, classifyUpstreamStatus } from "../errors";
-import type { Env } from "../types";
+import type { Env, ProviderName } from "../types";
 
 const DEFAULT_TIMEOUT_MS = 2500;
 const MIN_TIMEOUT_MS = 250;
 const MAX_TIMEOUT_MS = 10_000;
+const encoder = new TextEncoder();
+
+function loggingEnabled(env: Env): boolean {
+  return env.LOG_PROVIDER_IO?.trim().toLowerCase() === "true";
+}
+
+function safeEndpoint(endpoint: string): string {
+  const url = new URL(endpoint);
+  return `${url.origin}${url.pathname}`;
+}
+
+export async function fetchProviderResponse(
+  env: Env,
+  provider: ProviderName,
+  model: string,
+  endpoint: string,
+  text: string,
+  init: RequestInit,
+): Promise<Response> {
+  const shouldLog = loggingEnabled(env);
+  const startedAt = Date.now();
+
+  if (shouldLog) {
+    console.info(JSON.stringify({
+      event: "provider_request",
+      provider,
+      model,
+      method: init.method ?? "GET",
+      endpoint: safeEndpoint(endpoint),
+      input_bytes: encoder.encode(text).byteLength,
+    }));
+  }
+
+  try {
+    const response = await fetch(endpoint, init);
+    if (shouldLog) {
+      console.info(JSON.stringify({
+        event: "provider_response",
+        provider,
+        model,
+        status: response.status,
+        ok: response.ok,
+        provider_request_id: providerRequestId(response),
+        duration_ms: Date.now() - startedAt,
+      }));
+    }
+    return response;
+  } catch (error) {
+    if (shouldLog) {
+      console.error(JSON.stringify({
+        event: "provider_response",
+        provider,
+        model,
+        status: "transport_error",
+        error: error instanceof Error ? error.name : "UnknownError",
+        duration_ms: Date.now() - startedAt,
+      }));
+    }
+    throw error;
+  }
+}
 
 export function timeoutSignal(env: Env): AbortSignal {
   const configured = Number(env.UPSTREAM_TIMEOUT_MS);

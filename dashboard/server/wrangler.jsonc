@@ -15,11 +15,12 @@
     "subrequests": 10
   },
   "vars": {
-    "ALLOWED_ORIGINS": "http://localhost:4321",
-    "ANTHROPIC_MODEL": "claude-sonnet-4-5",
-    "GEMINI_MODEL": "gemini-2.5-flash",
+    "ALLOWED_ORIGINS": "http://localhost:4321,http://127.0.0.1:4321,http://[::1]:4321",
+    "ANTHROPIC_MODEL": "claude-sonnet-5-5",
+    "GEMINI_MODEL": "gemini-3.8-flash",
     "XAI_MODEL": "grok-4",
-    "ENABLE_XAI": "false",
+    "ENABLE_XAI": "true",
+    "LOG_PROVIDER_IO": "true",
     "ADDITIONAL_MODELS_JSON": "[]",
     "COUNT_CACHE_TTL_SECONDS": "300",
     "UPSTREAM_TIMEOUT_MS": "2500"

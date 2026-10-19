@@ -1,8 +1,8 @@
 import type { Env, ModelDefinition, ProviderName } from "./types";
 
 const DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-4-5",
-  google: "gemini-2.5-flash",
+  anthropic: "claude-sonnet-5-5",
+  google: "gemini-3.8-flash",
   xai: "grok-4",
 } as const;
 

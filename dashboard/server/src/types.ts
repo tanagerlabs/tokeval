@@ -10,6 +10,7 @@ export type CacheStatus = "hit" | "miss" | "coalesced" | "disabled";
 export type ProviderErrorCode =
   | "FEATURE_DISABLED"
   | "MISSING_PROVIDER_CREDENTIALS"
+  | "ANTHROPIC_WORKSPACE_REQUIRED"
   | "UPSTREAM_AUTH_FAILED"
   | "UPSTREAM_INVALID_REQUEST"
   | "UPSTREAM_MODEL_UNAVAILABLE"
@@ -90,6 +91,7 @@ export interface RateLimitBinding {
 export interface Env {
   ALLOWED_ORIGINS?: string;
   ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_WORKSPACE_ID?: string;
   ANTHROPIC_MODEL?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
@@ -100,6 +102,7 @@ export interface Env {
   CACHE_HMAC_SECRET?: string;
   COUNT_CACHE_TTL_SECONDS?: string;
   UPSTREAM_TIMEOUT_MS?: string;
+  LOG_PROVIDER_IO?: string;
   REQUEST_RATE_LIMITER?: RateLimitBinding;
   XAI_RATE_LIMITER?: RateLimitBinding;
 }

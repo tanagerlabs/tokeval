@@ -28,6 +28,7 @@ describe("Worker request handling", () => {
   test("rejects an unapproved browser origin before provider calls", async () => {
     const upstream = vi.fn();
     vi.stubGlobal("fetch", upstream);
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const response = await workerInternals.handleRequest(
       compareRequest(
@@ -43,6 +44,32 @@ describe("Worker request handling", () => {
 
     expect(response.status).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
+    expect(JSON.stringify(warning.mock.calls)).toContain("worker_request_rejected");
+    expect(JSON.stringify(warning.mock.calls)).toContain("https://evil.example");
+  });
+
+  test("allows each configured local dashboard origin", async () => {
+    const env: Env = {
+      ALLOWED_ORIGINS:
+        "http://localhost:4321,http://127.0.0.1:4321,http://[::1]:4321",
+    };
+
+    for (const origin of [
+      "http://localhost:4321",
+      "http://127.0.0.1:4321",
+      "http://[::1]:4321",
+    ]) {
+      const response = await workerInternals.handleRequest(
+        new Request("https://api.tokeval.test/api/v1/models", {
+          headers: { origin },
+        }),
+        env,
+        context,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("access-control-allow-origin")).toBe(origin);
+    }
   });
 
   test("returns count-only results and an independently disabled xAI row", async () => {
@@ -58,9 +85,10 @@ describe("Worker request handling", () => {
     const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const env: Env = {
       ALLOWED_ORIGINS: "https://tokeval.test",
-      ANTHROPIC_API_KEY: "a",
-      GEMINI_API_KEY: "g",
+      ANTHROPIC_API_KEY: "anthropic-private-key",
+      GEMINI_API_KEY: "gemini-private-key",
       ENABLE_XAI: "false",
+      LOG_PROVIDER_IO: "true",
     };
 
     const response = await workerInternals.handleRequest(
@@ -92,7 +120,54 @@ describe("Worker request handling", () => {
       },
     ]);
     expect(body.meta.retained_input).toBe(false);
-    expect(JSON.stringify(log.mock.calls)).not.toContain("secret phrase");
+    const serializedLogs = JSON.stringify(log.mock.calls);
+    expect(serializedLogs).toContain("hosted_tokenize_request");
+    expect(serializedLogs).toContain("hosted_tokenize_response");
+    expect(serializedLogs).toContain("provider_response");
+    expect(serializedLogs).not.toContain("secret phrase");
+    expect(serializedLogs).not.toContain("anthropic-private-key");
+    expect(serializedLogs).not.toContain("gemini-private-key");
+  });
+
+  test("logs xAI request metadata without logging reconstructable token data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          token_ids: [
+            {
+              token_id: 987654,
+              string_token: "private input",
+              token_bytes: Array.from(new TextEncoder().encode("private input")),
+            },
+          ],
+        }),
+      ),
+    );
+    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const response = await workerInternals.handleRequest(
+      compareRequest({
+        text: "private input",
+        providers: [{ provider: "xai", model: "grok-default" }],
+        request_id: "request-xai",
+      }),
+      {
+        ALLOWED_ORIGINS: "https://tokeval.test",
+        XAI_API_KEY: "xai-private-key",
+        ENABLE_XAI: "true",
+        LOG_PROVIDER_IO: "true",
+      },
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const serializedLogs = JSON.stringify(log.mock.calls);
+    expect(serializedLogs).toContain("provider_request");
+    expect(serializedLogs).toContain("hosted_tokenize_response");
+    expect(serializedLogs).not.toContain("private input");
+    expect(serializedLogs).not.toContain("987654");
+    expect(serializedLogs).not.toContain("xai-private-key");
   });
 
   test("enforces the anonymous request rate binding", async () => {

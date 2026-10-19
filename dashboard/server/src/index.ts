@@ -166,6 +166,24 @@ async function handleCompare(
   const startedAt = Date.now();
   const inputBytes = new TextEncoder().encode(parsed.text).byteLength;
   const traceId = crypto.randomUUID();
+  const logProviderIo = env.LOG_PROVIDER_IO?.trim().toLowerCase() === "true";
+
+  if (logProviderIo) {
+    console.info(
+      JSON.stringify({
+        event: "hosted_tokenize_request",
+        request_id: parsed.request_id,
+        trace_id: traceId,
+        providers: models.map(([, model]) => ({
+          provider: model.provider,
+          requested_model: model.publicId,
+          resolved_model: model.upstreamModel,
+          enabled: model.enabled,
+        })),
+        input_bytes: inputBytes,
+      }),
+    );
+  }
 
   const results = await Promise.all(
     models.map(([, model]) => invokeProvider(request, env, context, model, parsed.text)),
@@ -173,14 +191,19 @@ async function handleCompare(
 
   console.info(
     JSON.stringify({
-      event: "hosted_tokenize_compare",
+      event: "hosted_tokenize_response",
+      request_id: parsed.request_id,
       trace_id: traceId,
-      providers: results.map((result) => ({
+      results: results.map((result) => ({
         provider: result.provider,
-        model: result.requested_model,
+        requested_model: result.requested_model,
+        resolved_model: result.resolved_model,
         status: result.status,
+        token_count: result.token_count,
+        supports_boundaries: result.supports_boundaries,
         error: result.status === "unavailable" ? result.error.code : null,
         cache: result.cache,
+        provider_request_id: result.provider_request_id,
       })),
       input_bytes: inputBytes,
       duration_ms: Date.now() - startedAt,
@@ -225,6 +248,15 @@ async function handleRequest(
   const origin = allowedOrigin(request, env);
 
   if (requestOrigin && !origin) {
+    console.warn(
+      JSON.stringify({
+        event: "worker_request_rejected",
+        reason: "ORIGIN_NOT_ALLOWED",
+        origin: requestOrigin,
+        method: request.method,
+        path: url.pathname,
+      }),
+    );
     return json({ error: { code: "ORIGIN_NOT_ALLOWED" } }, 403, null);
   }
 

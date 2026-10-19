@@ -1,6 +1,7 @@
 import { ProviderError } from "../errors";
 import type { Env, ModelDefinition, ProviderSuccess } from "../types";
 import {
+  fetchProviderResponse,
   parseJsonObject,
   providerRequestId,
   requireOk,
@@ -19,8 +20,13 @@ export async function countGemini(
     throw new ProviderError("MISSING_PROVIDER_CREDENTIALS", false);
   }
 
-  const response = await fetch(
-    `${BASE_URL}/${encodeURIComponent(model.upstreamModel)}:countTokens`,
+  const endpoint = `${BASE_URL}/${encodeURIComponent(model.upstreamModel)}:countTokens`;
+  const response = await fetchProviderResponse(
+    env,
+    "google",
+    model.upstreamModel,
+    endpoint,
+    text,
     {
       method: "POST",
       headers: {

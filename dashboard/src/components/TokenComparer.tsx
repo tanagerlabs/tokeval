@@ -16,6 +16,10 @@ import {
 } from "../lib/hosted-tokenizer";
 import { OPEN_MODEL_PROFILES } from "../lib/open-model-profiles";
 import { hasCrossedSwapEdge, moveItem } from "../lib/model-order";
+import {
+  removeTokenizationResults,
+  replaceTokenizationResults,
+} from "../lib/tokenization-results";
 import type { TokenizationResult } from "../lib/tokenizer";
 import { ProviderLogo } from "./ProviderLogo";
 import { TokenCard } from "./TokenCard";
@@ -25,14 +29,23 @@ interface TokenComparerProps {
   initialResults: TokenizationResult[];
 }
 
+const CORE_MODEL_IDS = new Set(["openai-o200k", "openai-cl100k"]);
+const OPEN_MODEL_IDS = new Set(OPEN_MODEL_PROFILES.map((profile) => profile.id));
+
 function resultKey(result: TokenizationResult): string {
   return result.profile.id || result.profile.encoding;
 }
 
 function hostedErrorMessage(code: string | null): string {
   if (code === "API_NOT_CONFIGURED") return "Hosted API is not configured for this deployment.";
+  if (code === "NETWORK_OR_CORS") {
+    return "Could not reach the hosted API. Check that the Worker is running and this page origin is allowed.";
+  }
   if (code === "FEATURE_DISABLED") return "This provider is not enabled on the server yet.";
   if (code === "MISSING_PROVIDER_CREDENTIALS") return "Provider credentials are not configured.";
+  if (code === "ANTHROPIC_WORKSPACE_REQUIRED") {
+    return "Anthropic requires ANTHROPIC_WORKSPACE_ID for this API key.";
+  }
   if (code === "UPSTREAM_RATE_LIMITED" || code === "RATE_LIMITED") {
     return "The provider is temporarily rate limited.";
   }
@@ -171,23 +184,66 @@ export function TokenComparer({
     setStatus("loading");
 
     const timeout = window.setTimeout(async () => {
-      try {
-        const { tokenizeAll } = await import("../lib/tokenizer");
-        const coreResults = await tokenizeAll(text);
-        const openResults = await import("../lib/open-tokenizer-client").then(
-          ({ tokenizeOpenModelsInWorker }) =>
-            tokenizeOpenModelsInWorker(text),
+      const isCurrentRequest = () =>
+        !cancelled && currentRequest === requestId.current;
+      const updateGroup = (
+        next: TokenizationResult[],
+        groupIds: ReadonlySet<string>,
+      ) => {
+        if (!isCurrentRequest()) return;
+        setResults((current) =>
+          replaceTokenizationResults(current, next, groupIds),
         );
-        if (cancelled || currentRequest !== requestId.current) return;
+      };
 
-        lastTokenizedKey.current = tokenizationKey;
-        setResults([...coreResults, ...openResults]);
-        setStatus("ready");
-      } catch {
-        if (!cancelled && currentRequest === requestId.current) {
-          setStatus("error");
-        }
+      const coreTask = import("../lib/tokenizer")
+        .then(({ tokenizeAll }) => tokenizeAll(text))
+        .then((next) => {
+          updateGroup(next, CORE_MODEL_IDS);
+          return next;
+        });
+      const openTask = import("../lib/open-tokenizer-client")
+        .then(({ tokenizeOpenModelsInWorker }) =>
+          tokenizeOpenModelsInWorker(text),
+        )
+        .then((next) => {
+          updateGroup(next, OPEN_MODEL_IDS);
+          return next;
+        });
+      const outcomes = await Promise.allSettled([coreTask, openTask]);
+      if (!isCurrentRequest()) return;
+
+      const failedGroups = outcomes.flatMap((outcome, index) =>
+        outcome.status === "rejected"
+          ? [index === 0 ? CORE_MODEL_IDS : OPEN_MODEL_IDS]
+          : [],
+      );
+      if (failedGroups.length > 0) {
+        const failedIds = new Set(
+          failedGroups.flatMap((groupIds) => Array.from(groupIds)),
+        );
+        setResults((current) => removeTokenizationResults(current, failedIds));
+        console.error(
+          "Local tokenizer update failed.",
+          outcomes.map((outcome, index) => ({
+            group: index === 0 ? "core" : "open-model",
+            status: outcome.status,
+            error:
+              outcome.status === "rejected" && outcome.reason instanceof Error
+                ? outcome.reason.name
+                : null,
+            message:
+              outcome.status === "rejected" && outcome.reason instanceof Error
+                ? outcome.reason.message
+                : null,
+          })),
+        );
+        setStatus("error");
+        return;
       }
+
+      lastTokenizedKey.current = tokenizationKey;
+      setStatus("ready");
     }, 140);
 
     return () => {
@@ -513,10 +569,6 @@ export function TokenComparer({
     tokenCounts.length > 0
       ? `${results.length + HOSTED_MODEL_PROFILES.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
       : "0 models";
-  const hasOpenResults = results.some((result) =>
-    OPEN_MODEL_PROFILES.some((profile) => profile.id === result.profile.id),
-  );
-
   return (
     <section className="comparer" aria-label="Tokenizer comparison">
       <div className="input-panel">
@@ -564,7 +616,7 @@ export function TokenComparer({
           <span>
             {hostedEnabled
               ? " Text is sent to Anthropic, Google, and xAI for the rows below."
-              : " Disabled by default; local tokenizer rows stay in this browser."}
+              : " Disabled by default. Click Enable to send the current text to Anthropic, Google, and xAI."}
           </span>
         </p>
         <button
@@ -658,9 +710,9 @@ export function TokenComparer({
             );
           }
 
-          const pendingProfile = !hasOpenResults
-            ? OPEN_MODEL_PROFILES.find((profile) => profile.id === modelId)
-            : undefined;
+          const pendingProfile =
+            initialResults.find((candidate) => resultKey(candidate) === modelId)?.profile ??
+            OPEN_MODEL_PROFILES.find((profile) => profile.id === modelId);
 
           if (pendingProfile) {
             const isReduced = reducedTokenizerIds.has(modelId);
@@ -780,9 +832,12 @@ export function TokenComparer({
               >
                 <div className="result-panel__body-inner">
                   {!hostedEnabled && (
-                    <p className="hosted-output-note">
-                      Enable hosted counts above to request this provider's result.
-                    </p>
+                    <div className="hosted-output-note">
+                      Hosted requests are off. {" "}
+                      <button type="button" onClick={() => setHostedEnabled(true)}>
+                        Enable hosted counts
+                      </button>
+                    </div>
                   )}
                   {hostedEnabled && text.length === 0 && (
                     <p className="hosted-output-note">Enter text above to request a count.</p>

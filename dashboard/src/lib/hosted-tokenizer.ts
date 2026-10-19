@@ -31,7 +31,7 @@ export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
     provider: "anthropic",
     encoding: "hosted message count",
     label: "Anthropic Claude",
-    modelExamples: "Claude Sonnet 4.5",
+    modelExamples: "Claude Sonnet 5.5",
     accent: "coral",
     countSource: "hosted_message_count",
     supportsBoundaries: false,
@@ -42,7 +42,7 @@ export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
     provider: "google",
     encoding: "hosted input count",
     label: "Google Gemini",
-    modelExamples: "Gemini 2.5 Flash",
+    modelExamples: "Gemini 3.8 Flash",
     accent: "blue",
     countSource: "hosted_input_count",
     supportsBoundaries: false,
@@ -71,10 +71,12 @@ export class HostedApiError extends Error {
   }
 }
 
-function apiBaseUrl(): string | null {
+function compareEndpoint(): string | null {
   const configured = import.meta.env.PUBLIC_HOSTED_TOKENIZER_API_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-  return import.meta.env.DEV ? "http://localhost:8787" : null;
+  if (configured) {
+    return `${configured.replace(/\/$/, "")}/api/v1/tokenize/compare`;
+  }
+  return import.meta.env.DEV ? "/api/v1/tokenize/compare" : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -156,22 +158,28 @@ export async function compareHostedText(
   text: string,
   signal: AbortSignal,
 ): Promise<HostedResult[]> {
-  const baseUrl = apiBaseUrl();
-  if (!baseUrl) throw new HostedApiError("API_NOT_CONFIGURED");
+  const endpoint = compareEndpoint();
+  if (!endpoint) throw new HostedApiError("API_NOT_CONFIGURED");
 
-  const response = await fetch(`${baseUrl}/api/v1/tokenize/compare`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      text,
-      providers: HOSTED_MODEL_PROFILES.map((profile) => ({
-        provider: profile.provider,
-        model: profile.id,
-      })),
-      request_id: crypto.randomUUID(),
-    }),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        text,
+        providers: HOSTED_MODEL_PROFILES.map((profile) => ({
+          provider: profile.provider,
+          model: profile.id,
+        })),
+        request_id: crypto.randomUUID(),
+      }),
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new HostedApiError("NETWORK_OR_CORS");
+  }
 
   let body: unknown;
   try {

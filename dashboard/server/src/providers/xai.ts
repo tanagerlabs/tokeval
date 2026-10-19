@@ -1,6 +1,7 @@
 import { ProviderError } from "../errors";
 import type { Env, HostedToken, ModelDefinition, ProviderSuccess } from "../types";
 import {
+  fetchProviderResponse,
   parseJsonObject,
   providerRequestId,
   requireOk,
@@ -79,7 +80,7 @@ export async function tokenizeXai(
     throw new ProviderError("MISSING_PROVIDER_CREDENTIALS", false);
   }
 
-  const response = await fetch(ENDPOINT, {
+  const response = await fetchProviderResponse(env, "xai", model.upstreamModel, ENDPOINT, text, {
     method: "POST",
     headers: {
       authorization: `Bearer ${env.XAI_API_KEY}`,
