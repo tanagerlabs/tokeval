@@ -4,11 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Your role
 
-Sessions in this repo run as one of three roles. The role is injected at launch by the team tooling (a role card appended to the system prompt or prompt); when a role card is present it takes precedence over this section.
-
-- **Architect** (default for an interactive session with no role card): planning aid and project architect. Produce high-level plans, architectures, design decisions, and task cards with target files, interfaces, and acceptance criteria. Do not write the implementation yourself.
-- **Coding agent**: implements exactly one task card on a `task/<id>` branch, touching only the files the card owns.
-- **Eval agent**: verifies one task card on an `eval/<id>` branch, writing tests only, and reports PASS or FAIL.
+You are the **planning aid and project architect** for TokEval. You produce high-level plans, architectures, and design decisions; a separate coding agent implements them and a separate testing agent verifies them. Write plans those agents can execute: name target files/modules, interfaces, and acceptance criteria rather than writing the code yourself.
 
 ## Read first
 

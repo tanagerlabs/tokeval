@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import {
   compareHostedText,
   HOSTED_MODEL_PROFILES,
@@ -7,6 +15,7 @@ import {
   type HostedStatus,
 } from "../lib/hosted-tokenizer";
 import { OPEN_MODEL_PROFILES } from "../lib/open-model-profiles";
+import { hasCrossedSwapEdge, moveItem } from "../lib/model-order";
 import type { TokenizationResult } from "../lib/tokenizer";
 import { ProviderLogo } from "./ProviderLogo";
 import { TokenCard } from "./TokenCard";
@@ -32,6 +41,48 @@ function hostedErrorMessage(code: string | null): string {
   return "The hosted result is temporarily unavailable.";
 }
 
+interface DragState {
+  id: string;
+  modelName: string;
+  pointerId: number;
+  handle: HTMLButtonElement;
+  grabOffset: number;
+  clientY: number;
+  lastClientY: number;
+  lastSwapClientY: number | null;
+  lastSwapDirection: -1 | 1 | null;
+  translateY: number;
+}
+
+const REORDER_ANIMATION = {
+  duration: 220,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+};
+
+const REVERSE_DIRECTION_HYSTERESIS = 24;
+
+interface VerticalBounds {
+  top: number;
+  height: number;
+}
+
+function naturalVerticalBounds(element: HTMLElement): VerticalBounds {
+  const bounds = element.getBoundingClientRect();
+  const transform = window.getComputedStyle(element).transform;
+  let translateY = 0;
+
+  if (transform !== "none") {
+    try {
+      translateY = new DOMMatrixReadOnly(transform).m42;
+    } catch {
+      // A malformed or unsupported transform should not interrupt dragging.
+    }
+  }
+
+  const top = bounds.top - translateY;
+  return { top, height: bounds.height };
+}
+
 export function TokenComparer({
   initialText,
   initialResults,
@@ -40,8 +91,12 @@ export function TokenComparer({
     initialResults.some((result) => result.profile.id === profile.id),
   );
   const inputId = useId();
+  const reorderHelpId = useId();
   const requestId = useRef(0);
   const hostedAbortController = useRef<AbortController | null>(null);
+  const rowElements = useRef(new Map<string, HTMLElement>());
+  const previousRowPositions = useRef<Map<string, number> | null>(null);
+  const dragState = useRef<DragState | null>(null);
   const lastTokenizedKey = useRef(
     hasPreloadedOpenResults ? `all:0:${initialText}` : `initial:${initialText}`,
   );
@@ -59,6 +114,50 @@ export function TokenComparer({
   const [status, setStatus] = useState<"ready" | "loading" | "error">(
     hasPreloadedOpenResults ? "ready" : "loading",
   );
+  const [modelOrder, setModelOrder] = useState(() =>
+    Array.from(
+      new Set([
+        ...initialResults.map(resultKey),
+        ...OPEN_MODEL_PROFILES.map((profile) => profile.id),
+        ...HOSTED_MODEL_PROFILES.map((profile) => profile.id),
+      ]),
+    ),
+  );
+  const modelOrderRef = useRef(modelOrder);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+
+  modelOrderRef.current = modelOrder;
+
+  useLayoutEffect(() => {
+    const previous = previousRowPositions.current;
+    previousRowPositions.current = null;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (previous && !reduceMotion) {
+      for (const [id, element] of rowElements.current) {
+        if (id === dragState.current?.id) continue;
+        const previousTop = previous.get(id);
+        if (previousTop === undefined) continue;
+        const delta = previousTop - element.getBoundingClientRect().top;
+        if (Math.abs(delta) < 0.5) continue;
+
+        if (typeof element.animate !== "function") continue;
+        element.animate(
+          [
+            { transform: `translateY(${delta}px)` },
+            { transform: "translateY(0)" },
+          ],
+          REORDER_ANIMATION,
+        );
+      }
+    }
+
+    const activeDrag = dragState.current;
+    if (activeDrag) positionDraggedRow(activeDrag);
+  }, [modelOrder]);
 
   useEffect(() => {
     const tokenizationKey = `all:${retryVersion}:${text}`;
@@ -136,6 +235,52 @@ export function TokenComparer({
     };
   }, [hostedEnabled, hostedRetryVersion, text]);
 
+  useEffect(() => {
+    if (!draggingId) return;
+
+    function handlePointerMove(event: globalThis.PointerEvent): void {
+      const activeDrag = dragState.current;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      continueDrag(event.pointerId, event.clientY);
+    }
+
+    function handlePointerEnd(event: globalThis.PointerEvent): void {
+      finishDrag(event.pointerId);
+    }
+
+    function handleWindowBlur(): void {
+      finishDrag();
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") finishDrag();
+    }
+
+    function handleVisibilityChange(): void {
+      if (document.visibilityState !== "visible") finishDrag();
+    }
+
+    window.addEventListener("pointermove", handlePointerMove, {
+      capture: true,
+      passive: false,
+    });
+    window.addEventListener("pointerup", handlePointerEnd, true);
+    window.addEventListener("pointercancel", handlePointerEnd, true);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerup", handlePointerEnd, true);
+      window.removeEventListener("pointercancel", handlePointerEnd, true);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [draggingId]);
+
   function toggleTokenizer(tokenizerId: string): void {
     setReducedTokenizerIds((current) => {
       const next = new Set(current);
@@ -143,6 +288,215 @@ export function TokenComparer({
       else next.add(tokenizerId);
       return next;
     });
+  }
+
+  function setRowElement(id: string, element: HTMLElement | null): void {
+    if (element) rowElements.current.set(id, element);
+    else rowElements.current.delete(id);
+  }
+
+  function captureRowPositions(): Map<string, number> {
+    return new Map(
+      Array.from(rowElements.current, ([id, element]) => [
+        id,
+        element.getBoundingClientRect().top,
+      ]),
+    );
+  }
+
+  function applyModelOrder(next: string[]): void {
+    const current = modelOrderRef.current;
+    if (
+      next.length === current.length &&
+      next.every((id, index) => id === current[index])
+    ) {
+      return;
+    }
+
+    previousRowPositions.current = captureRowPositions();
+    modelOrderRef.current = next;
+    setModelOrder(next);
+  }
+
+  function positionDraggedRow(activeDrag: DragState): void {
+    const element = rowElements.current.get(activeDrag.id);
+    if (!element) return;
+
+    const currentTop = element.getBoundingClientRect().top;
+    const naturalTop = currentTop - activeDrag.translateY;
+    activeDrag.translateY =
+      activeDrag.clientY - activeDrag.grabOffset - naturalTop;
+    element.style.setProperty("--drag-y", `${activeDrag.translateY}px`);
+  }
+
+  function beginDrag(
+    event: PointerEvent<HTMLButtonElement>,
+    modelId: string,
+    modelName: string,
+  ): void {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const element = rowElements.current.get(modelId);
+    if (!element) return;
+
+    event.preventDefault();
+    element.getAnimations().forEach((animation) => animation.cancel());
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = element.getBoundingClientRect();
+    dragState.current = {
+      id: modelId,
+      modelName,
+      pointerId: event.pointerId,
+      handle: event.currentTarget,
+      grabOffset: event.clientY - bounds.top,
+      clientY: event.clientY,
+      lastClientY: event.clientY,
+      lastSwapClientY: null,
+      lastSwapDirection: null,
+      translateY: 0,
+    };
+    setReorderAnnouncement("");
+    setDraggingId(modelId);
+  }
+
+  function continueDrag(pointerId: number, clientY: number): void {
+    const activeDrag = dragState.current;
+    if (!activeDrag || activeDrag.pointerId !== pointerId) return;
+
+    const pointerDelta = clientY - activeDrag.lastClientY;
+    const direction: -1 | 0 | 1 =
+      pointerDelta < -0.5 ? -1 : pointerDelta > 0.5 ? 1 : 0;
+    activeDrag.lastClientY = clientY;
+    activeDrag.clientY = clientY;
+    positionDraggedRow(activeDrag);
+
+    if (direction === 0) return;
+    if (
+      activeDrag.lastSwapClientY !== null &&
+      activeDrag.lastSwapDirection !== direction &&
+      Math.abs(clientY - activeDrag.lastSwapClientY) <
+        REVERSE_DIRECTION_HYSTERESIS
+    ) {
+      return;
+    }
+
+    const current = modelOrderRef.current;
+    const currentIndex = current.indexOf(activeDrag.id);
+    if (currentIndex < 0) return;
+    const neighborIndex = currentIndex + direction;
+    const neighborId = current[neighborIndex];
+    const activeElement = rowElements.current.get(activeDrag.id);
+    const neighborElement = rowElements.current.get(neighborId);
+    if (!activeElement || !neighborElement) return;
+
+    const activeTop = clientY - activeDrag.grabOffset;
+    const activeHeight = activeElement.offsetHeight;
+    const neighborBounds = naturalVerticalBounds(neighborElement);
+    const shouldSwap = hasCrossedSwapEdge(
+      direction,
+      activeTop,
+      activeHeight,
+      neighborBounds.top,
+      neighborBounds.height,
+    );
+
+    if (!shouldSwap) return;
+
+    applyModelOrder(moveItem(current, currentIndex, neighborIndex));
+    activeDrag.lastSwapClientY = clientY;
+    activeDrag.lastSwapDirection = direction;
+  }
+
+  function finishDrag(pointerId?: number): void {
+    const activeDrag = dragState.current;
+    if (
+      !activeDrag ||
+      (pointerId !== undefined && activeDrag.pointerId !== pointerId)
+    ) {
+      return;
+    }
+
+    if (activeDrag.handle.hasPointerCapture(activeDrag.pointerId)) {
+      activeDrag.handle.releasePointerCapture(activeDrag.pointerId);
+    }
+
+    const element = rowElements.current.get(activeDrag.id);
+    const releasedOffset = activeDrag.translateY;
+    element?.style.removeProperty("--drag-y");
+    dragState.current = null;
+    setDraggingId(null);
+
+    if (
+      element &&
+      typeof element.animate === "function" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      Math.abs(releasedOffset) >= 0.5
+    ) {
+      element.animate(
+        [
+          { transform: `translateY(${releasedOffset}px) scale(1.01)` },
+          { transform: "translateY(0) scale(1)" },
+        ],
+        { ...REORDER_ANIMATION, duration: 180 },
+      );
+    }
+
+    const position = modelOrderRef.current.indexOf(activeDrag.id) + 1;
+    setReorderAnnouncement(
+      `${activeDrag.modelName} moved to position ${position} of ${modelOrderRef.current.length}.`,
+    );
+  }
+
+  function reorderWithKeyboard(
+    event: KeyboardEvent<HTMLButtonElement>,
+    modelId: string,
+    modelName: string,
+  ): void {
+    const current = modelOrderRef.current;
+    const fromIndex = current.indexOf(modelId);
+    let toIndex = fromIndex;
+
+    if (event.key === "ArrowUp") toIndex -= 1;
+    else if (event.key === "ArrowDown") toIndex += 1;
+    else if (event.key === "Home") toIndex = 0;
+    else if (event.key === "End") toIndex = current.length - 1;
+    else return;
+
+    event.preventDefault();
+    toIndex = Math.max(0, Math.min(current.length - 1, toIndex));
+    if (toIndex === fromIndex) return;
+
+    applyModelOrder(moveItem(current, fromIndex, toIndex));
+    setReorderAnnouncement(
+      `${modelName} moved to position ${toIndex + 1} of ${current.length}.`,
+    );
+  }
+
+  function renderDragHandle(modelId: string, modelName: string) {
+    const label = `Reorder ${modelName}`;
+
+    return (
+      <button
+        className="result-panel__drag-handle"
+        type="button"
+        aria-label={label}
+        aria-describedby={reorderHelpId}
+        title={`${label} (drag or use arrow keys)`}
+        onPointerDown={(event) => beginDrag(event, modelId, modelName)}
+        onPointerUp={(event) => finishDrag(event.pointerId)}
+        onPointerCancel={(event) => finishDrag(event.pointerId)}
+        onKeyDown={(event) => reorderWithKeyboard(event, modelId, modelName)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="8" cy="7" r="1.25" />
+          <circle cx="16" cy="7" r="1.25" />
+          <circle cx="8" cy="12" r="1.25" />
+          <circle cx="16" cy="12" r="1.25" />
+          <circle cx="8" cy="17" r="1.25" />
+          <circle cx="16" cy="17" r="1.25" />
+        </svg>
+      </button>
+    );
   }
 
   const byteCount = new TextEncoder().encode(text).length;
@@ -222,130 +576,149 @@ export function TokenComparer({
         </button>
       </div>
 
-      <div className={`results-list ${status === "loading" ? "is-loading" : ""}`}>
-        {results.map((result) => {
-          const tokenizerId = resultKey(result);
-          const isReduced = reducedTokenizerIds.has(tokenizerId);
-          const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${result.profile.modelExamples}`;
-
-          return (
-            <article
-              className={`result-panel ${isReduced ? "result-panel--reduced" : ""}`}
-              key={tokenizerId}
-            >
-              <header className="result-panel__header">
-                <div className="result-panel__identity">
-                  <ProviderLogo provider={result.profile.provider} />
-                  <div className="result-panel__name">
-                    <h2>{result.profile.modelExamples}</h2>
-                    <code>{result.profile.encoding}</code>
-                  </div>
-                </div>
-                <div className="result-panel__actions">
-                  <p>
-                    <strong>{result.tokens.length}</strong>
-                    {result.tokens.length === 1 ? " token" : " tokens"}
-                  </p>
-                  <button
-                    className="result-panel__toggle"
-                    type="button"
-                    aria-expanded={!isReduced}
-                    aria-label={toggleLabel}
-                    title={toggleLabel}
-                    onClick={() => toggleTokenizer(tokenizerId)}
-                  >
-                    <svg
-                      className="result-panel__toggle-icon"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path d="m7 14 5-5 5 5" />
-                    </svg>
-                  </button>
-                </div>
-              </header>
-              <div
-                className="result-panel__body"
-                aria-hidden={isReduced}
-                inert={isReduced}
-              >
-                <div className="result-panel__body-inner">
-                  <TokenCard result={result} />
-                  <p className="result-panel__revision">
-                    Local · {result.profile.sourceUrl ? (
-                      <a
-                        href={result.profile.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {result.tokenizerRevision}
-                      </a>
-                    ) : result.tokenizerRevision}
-                  </p>
-                </div>
-              </div>
-            </article>
+      <p className="visually-hidden" id={reorderHelpId}>
+        Drag to reorder, or use the up and down arrow keys. Home and End move a
+        model to the start or end of the list.
+      </p>
+      <p className="visually-hidden" aria-live="polite" aria-atomic="true">
+        {reorderAnnouncement}
+      </p>
+      <div
+        className={`results-list ${status === "loading" ? "is-loading" : ""} ${draggingId ? "results-list--dragging" : ""}`}
+      >
+        {modelOrder.map((modelId) => {
+          const localResult = results.find(
+            (candidate) => resultKey(candidate) === modelId,
           );
-        })}
 
-        {!hasOpenResults &&
-          OPEN_MODEL_PROFILES.map((profile) => (
-            <article
-              className={`result-panel result-panel--pending ${reducedTokenizerIds.has(profile.id) ? "result-panel--reduced" : ""}`}
-              key={profile.id}
-            >
-              <header className="result-panel__header">
-                <div className="result-panel__identity">
-                  <ProviderLogo provider={profile.provider} />
-                  <div className="result-panel__name">
-                    <h2>{profile.modelExamples}</h2>
-                    <code>{profile.encoding}</code>
+          if (localResult) {
+            const isReduced = reducedTokenizerIds.has(modelId);
+            const modelName = localResult.profile.modelExamples;
+            const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
+
+            return (
+              <article
+                className={`result-panel ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
+                key={modelId}
+                ref={(element) => setRowElement(modelId, element)}
+              >
+                <header className="result-panel__header">
+                  <div className="result-panel__identity">
+                    <ProviderLogo provider={localResult.profile.provider} />
+                    <div className="result-panel__name">
+                      <h2>{modelName}</h2>
+                      <code>{localResult.profile.encoding}</code>
+                    </div>
+                  </div>
+                  <div className="result-panel__actions">
+                    <p>
+                      <strong>{localResult.tokens.length}</strong>
+                      {localResult.tokens.length === 1 ? " token" : " tokens"}
+                    </p>
+                    <button
+                      className="result-panel__toggle"
+                      type="button"
+                      aria-expanded={!isReduced}
+                      aria-label={toggleLabel}
+                      title={toggleLabel}
+                      onClick={() => toggleTokenizer(modelId)}
+                    >
+                      <svg
+                        className="result-panel__toggle-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d="m7 14 5-5 5 5" />
+                      </svg>
+                    </button>
+                    {renderDragHandle(modelId, modelName)}
+                  </div>
+                </header>
+                <div
+                  className="result-panel__body"
+                  aria-hidden={isReduced}
+                  inert={isReduced}
+                >
+                  <div className="result-panel__body-inner">
+                    <TokenCard result={localResult} />
+                    <p className="result-panel__revision">
+                      Local · {localResult.profile.sourceUrl ? (
+                        <a
+                          href={localResult.profile.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {localResult.tokenizerRevision}
+                        </a>
+                      ) : localResult.tokenizerRevision}
+                    </p>
                   </div>
                 </div>
-                <div className="result-panel__actions">
-                  <p>
-                    {status === "error" ? "Unavailable" : "Loading tokenizer…"}
-                  </p>
-                  <button
-                    className="result-panel__toggle"
-                    type="button"
-                    aria-expanded={!reducedTokenizerIds.has(profile.id)}
-                    aria-label={`${reducedTokenizerIds.has(profile.id) ? "Expand" : "Reduce"} ${profile.modelExamples}`}
-                    title={`${reducedTokenizerIds.has(profile.id) ? "Expand" : "Reduce"} ${profile.modelExamples}`}
-                    onClick={() => toggleTokenizer(profile.id)}
-                  >
-                    <svg
-                      className="result-panel__toggle-icon"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
+              </article>
+            );
+          }
+
+          const pendingProfile = !hasOpenResults
+            ? OPEN_MODEL_PROFILES.find((profile) => profile.id === modelId)
+            : undefined;
+
+          if (pendingProfile) {
+            const isReduced = reducedTokenizerIds.has(modelId);
+            const modelName = pendingProfile.modelExamples;
+            const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
+
+            return (
+              <article
+                className={`result-panel result-panel--pending ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
+                key={modelId}
+                ref={(element) => setRowElement(modelId, element)}
+              >
+                <header className="result-panel__header">
+                  <div className="result-panel__identity">
+                    <ProviderLogo provider={pendingProfile.provider} />
+                    <div className="result-panel__name">
+                      <h2>{modelName}</h2>
+                      <code>{pendingProfile.encoding}</code>
+                    </div>
+                  </div>
+                  <div className="result-panel__actions">
+                    <p>
+                      {status === "error" ? "Unavailable" : "Loading tokenizer…"}
+                    </p>
+                    <button
+                      className="result-panel__toggle"
+                      type="button"
+                      aria-expanded={!isReduced}
+                      aria-label={toggleLabel}
+                      title={toggleLabel}
+                      onClick={() => toggleTokenizer(modelId)}
                     >
-                      <path d="m7 14 5-5 5 5" />
-                    </svg>
-                  </button>
-                </div>
-              </header>
-            </article>
-          ))}
+                      <svg
+                        className="result-panel__toggle-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d="m7 14 5-5 5 5" />
+                      </svg>
+                    </button>
+                    {renderDragHandle(modelId, modelName)}
+                  </div>
+                </header>
+              </article>
+            );
+          }
 
-        {status === "error" && (
-          <div className="provider-error" role="alert">
-            Open-model tokenizer files could not be loaded. Your text stayed in
-            this browser. {" "}
-            <button
-              type="button"
-              onClick={() => setRetryVersion((value) => value + 1)}
-            >
-              Retry
-            </button>
-          </div>
-        )}
+          const profile = HOSTED_MODEL_PROFILES.find(
+            (candidate) => candidate.id === modelId,
+          );
+          if (!profile) return null;
 
-        {HOSTED_MODEL_PROFILES.map((profile) => {
           const result = hostedResults.find(
             (candidate) => candidate.profile.id === profile.id,
           );
-          const isReduced = reducedTokenizerIds.has(profile.id);
-          const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${profile.modelExamples}`;
+          const isReduced = reducedTokenizerIds.has(modelId);
+          const modelName = profile.modelExamples;
+          const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
           const isUnavailable = result?.status === "unavailable";
           const rowError = isUnavailable ? result.error?.code ?? null : hostedError;
           const count = result?.status === "ok" ? result.tokenCount : null;
@@ -353,14 +726,15 @@ export function TokenComparer({
 
           return (
             <article
-              className={`result-panel result-panel--hosted ${isReduced ? "result-panel--reduced" : ""}`}
-              key={profile.id}
+              className={`result-panel result-panel--hosted ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
+              key={modelId}
+              ref={(element) => setRowElement(modelId, element)}
             >
               <header className="result-panel__header">
                 <div className="result-panel__identity">
                   <ProviderLogo provider={profile.provider} />
                   <div className="result-panel__name">
-                    <h2>{profile.modelExamples}</h2>
+                    <h2>{modelName}</h2>
                     <code>{resolvedModel}</code>
                   </div>
                 </div>
@@ -386,7 +760,7 @@ export function TokenComparer({
                     aria-expanded={!isReduced}
                     aria-label={toggleLabel}
                     title={toggleLabel}
-                    onClick={() => toggleTokenizer(profile.id)}
+                    onClick={() => toggleTokenizer(modelId)}
                   >
                     <svg
                       className="result-panel__toggle-icon"
@@ -396,6 +770,7 @@ export function TokenComparer({
                       <path d="m7 14 5-5 5 5" />
                     </svg>
                   </button>
+                  {renderDragHandle(modelId, modelName)}
                 </div>
               </header>
               <div
@@ -447,6 +822,19 @@ export function TokenComparer({
             </article>
           );
         })}
+
+        {status === "error" && (
+          <div className="provider-error" role="alert">
+            Open-model tokenizer files could not be loaded. Your text stayed in
+            this browser. {" "}
+            <button
+              type="button"
+              onClick={() => setRetryVersion((value) => value + 1)}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {hostedEnabled && hostedStatus === "error" && (
           <div className="provider-error" role="alert">

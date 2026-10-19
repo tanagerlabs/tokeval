@@ -306,6 +306,7 @@ main {
 }
 
 .result-panel__toggle,
+.result-panel__drag-handle,
 .provider-error button {
   padding: 0;
   color: var(--link);
@@ -326,6 +327,27 @@ main {
   display: grid;
   margin-top: 1.4rem;
   gap: 1rem;
+}
+
+.results-list--dragging {
+  user-select: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.result-panel {
+  position: relative;
+  border-radius: 0.45rem;
 }
 
 .result-panel + .result-panel {
@@ -433,6 +455,59 @@ main {
     border-color 160ms ease;
 }
 
+.result-panel__drag-handle {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
+  place-items: center;
+  flex: none;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  cursor: grab;
+  touch-action: none;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.result-panel__drag-handle:hover {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--soft-line);
+}
+
+.result-panel__drag-handle svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: currentColor;
+}
+
+.result-panel--dragging {
+  z-index: 2;
+  background: var(--surface);
+  box-shadow:
+    0 12px 28px rgba(32, 33, 35, 0.14),
+    0 2px 8px rgba(32, 33, 35, 0.08);
+  cursor: grabbing;
+  transform: translateY(var(--drag-y, 0));
+  will-change: transform;
+}
+
+:root[data-theme="dark"] .result-panel--dragging {
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.38),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.result-panel--dragging .result-panel__drag-handle {
+  color: var(--ink);
+  cursor: grabbing;
+}
+
 .result-panel__toggle:hover {
   color: var(--ink);
   background: var(--surface);
@@ -477,8 +552,12 @@ main {
 .result-panel__actions {
   display: flex;
   flex: none;
-  gap: 0.7rem;
+  gap: 0.3rem;
   align-items: center;
+}
+
+.result-panel__actions > p {
+  margin-right: 0.4rem;
 }
 
 .result-panel__header strong {
