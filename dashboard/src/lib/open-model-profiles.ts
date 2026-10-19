@@ -2,7 +2,7 @@ import type { TokenizerProfile } from "./tokenizer";
 
 export type OpenModelTokenizerId =
   | "deepseek-v3.2"
-  | "meta-llama-3"
+  | "meta-llama-4"
   | "mistral-7b-v0.3"
   | "cohere-command-a-plus"
   | "xai-grok-1";
@@ -37,18 +37,18 @@ export const OPEN_MODEL_PROFILES: OpenModelTokenizerProfile[] = [
     decoder: "byte_level",
   },
   {
-    id: "meta-llama-3",
+    id: "meta-llama-4",
     provider: "meta",
-    encoding: "llama3/tokenizer.model",
-    label: "Meta Llama 3",
-    modelExamples: "Meta Llama 3",
+    encoding: "llama4/tokenizer.model",
+    label: "Meta Llama 4",
+    modelExamples: "Meta Llama 4",
     accent: "blue",
     repository: "meta-llama/llama-models",
-    revision: "5fdf83110cc9daa7435dfba6eb304892cc0041b8",
+    revision: "0e0b8c519242d5833d8c11bffc1232b77ad7f301",
     artifactUrl:
-      "https://raw.githubusercontent.com/meta-llama/llama-models/5fdf83110cc9daa7435dfba6eb304892cc0041b8/models/llama3/tokenizer.model",
+      "https://raw.githubusercontent.com/meta-llama/llama-models/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama4/tokenizer.model",
     sourceUrl:
-      "https://github.com/meta-llama/llama-models/blob/5fdf83110cc9daa7435dfba6eb304892cc0041b8/models/llama3/tokenizer.model",
+      "https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama4/tokenizer.model",
     decoder: "tiktoken",
   },
   {

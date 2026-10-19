@@ -3,6 +3,7 @@ import { TokenComparer } from "../components/TokenComparer";
 import GitHubLink from "../components/GitHubLink.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { INITIAL_HOSTED_RESULTS } from "../lib/initial-hosted-results";
 import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
 
 const description =
@@ -30,8 +31,8 @@ const currentYear = new Date().getFullYear();
           shown instead of invented text. Open-model vocabulary files are
           downloaded from their pinned public repositories, cached by the
           browser, and run in a local worker. Local rows do not send input to a
-          model API. Optional hosted rows are disabled by default and clearly
-          disclose when text will be sent to Anthropic, Google, or xAI.
+          model API. Anthropic, Google, and xAI rows update automatically and
+          send the entered text to those providers through the TokEval server.
           Plain-text local results come from pinned public tokenizer artifacts
           using <code>js-tiktoken@1.0.21</code>,
           <code>@huggingface/tokenizers@0.2.0</code>, and
@@ -44,6 +45,7 @@ const currentYear = new Date().getFullYear();
         client:load
         initialText={INITIAL_TEXT}
         initialResults={INITIAL_RESULTS}
+        initialHostedResults={INITIAL_HOSTED_RESULTS}
       />
     </main>
 

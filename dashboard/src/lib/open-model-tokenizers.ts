@@ -116,9 +116,13 @@ async function loadLlamaTokenizer(
       bytesByToken.set(rank, decodeBase64(encodedBytes));
       return `! ${rank} ${encodedBytes}`;
     });
+    const { default: o200kRanks } = await import(
+      "js-tiktoken/ranks/o200k_base"
+    );
     const ranks: TiktokenBPE = {
-      pat_str:
-        "'(?:[sS]|[tT]|[rR][eE]|[vV][eE]|[mM]|[lL][lL]|[dD])|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}{1,3}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+",
+      // Llama 4's reference tokenizer uses the same pre-tokenization pattern
+      // as o200k, but its own pinned merge ranks and token IDs.
+      pat_str: o200kRanks.pat_str,
       special_tokens: {},
       bpe_ranks: packedRanks.join("\n"),
     };

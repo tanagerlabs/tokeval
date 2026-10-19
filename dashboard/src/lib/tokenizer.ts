@@ -47,7 +47,7 @@ export const TOKENIZER_PROFILES: Record<EncodingName, TokenizerProfile> = {
     provider: "openai",
     encoding: "o200k_base",
     label: "OpenAI o200k",
-    modelExamples: "GPT-4o · GPT-4.1 · GPT-5",
+    modelExamples: "GPT-5",
     accent: "coral",
   },
   cl100k_base: {

@@ -16,9 +16,9 @@
   },
   "vars": {
     "ALLOWED_ORIGINS": "http://localhost:4321,http://127.0.0.1:4321,http://[::1]:4321",
-    "ANTHROPIC_MODEL": "claude-sonnet-5-5",
-    "GEMINI_MODEL": "gemini-3.8-flash",
-    "XAI_MODEL": "grok-4",
+    "ANTHROPIC_MODEL": "claude-opus-5-5",
+    "GEMINI_MODEL": "gemini-4-argon",
+    "XAI_MODEL": "grok-4.7",
     "ENABLE_XAI": "true",
     "LOG_PROVIDER_IO": "true",
     "ADDITIONAL_MODELS_JSON": "[]",

@@ -1,7 +1,7 @@
 import type { TokenPiece, TokenizerProfile } from "./tokenizer";
 
 export type HostedProvider = "anthropic" | "google" | "xai";
-export type HostedStatus = "disabled" | "loading" | "ready" | "error";
+export type HostedStatus = "loading" | "ready" | "error";
 
 export interface HostedModelProfile extends TokenizerProfile {
   id: "anthropic-default" | "gemini-default" | "grok-default";
@@ -31,7 +31,7 @@ export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
     provider: "anthropic",
     encoding: "hosted message count",
     label: "Anthropic Claude",
-    modelExamples: "Claude Sonnet 5.5",
+    modelExamples: "Claude Opus 5.5",
     accent: "coral",
     countSource: "hosted_message_count",
     supportsBoundaries: false,
@@ -42,7 +42,7 @@ export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
     provider: "google",
     encoding: "hosted input count",
     label: "Google Gemini",
-    modelExamples: "Gemini 3.8 Flash",
+    modelExamples: "Gemini 4 Argon",
     accent: "blue",
     countSource: "hosted_input_count",
     supportsBoundaries: false,
@@ -53,7 +53,7 @@ export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
     provider: "xai",
     encoding: "hosted tokenize-text",
     label: "xAI Grok",
-    modelExamples: "Grok 4",
+    modelExamples: "Grok 4.7",
     accent: "coral",
     countSource: "hosted_token_breakdown",
     supportsBoundaries: true,
@@ -157,6 +157,7 @@ function parseResult(value: unknown): HostedResult {
 export async function compareHostedText(
   text: string,
   signal: AbortSignal,
+  profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
 ): Promise<HostedResult[]> {
   const endpoint = compareEndpoint();
   if (!endpoint) throw new HostedApiError("API_NOT_CONFIGURED");
@@ -168,7 +169,7 @@ export async function compareHostedText(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         text,
-        providers: HOSTED_MODEL_PROFILES.map((profile) => ({
+        providers: profiles.map((profile) => ({
           provider: profile.provider,
           model: profile.id,
         })),
@@ -198,7 +199,7 @@ export async function compareHostedText(
   }
 
   const results = body.results.map(parseResult);
-  return HOSTED_MODEL_PROFILES.map((profile) => {
+  return profiles.map((profile) => {
     const result = results.find((candidate) => candidate.profile.id === profile.id);
     if (!result) throw new HostedApiError("INVALID_RESPONSE");
     return result;

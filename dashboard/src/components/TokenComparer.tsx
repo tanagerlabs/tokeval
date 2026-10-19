@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -14,6 +15,10 @@ import {
   type HostedResult,
   type HostedStatus,
 } from "../lib/hosted-tokenizer";
+import {
+  buildModelCatalog,
+  defaultModelOrder,
+} from "../lib/model-catalog";
 import { OPEN_MODEL_PROFILES } from "../lib/open-model-profiles";
 import { hasCrossedSwapEdge, moveItem } from "../lib/model-order";
 import {
@@ -27,6 +32,7 @@ import { TokenCard } from "./TokenCard";
 interface TokenComparerProps {
   initialText: string;
   initialResults: TokenizationResult[];
+  initialHostedResults: HostedResult[];
 }
 
 const CORE_MODEL_IDS = new Set(["openai-o200k", "openai-cl100k"]);
@@ -99,14 +105,38 @@ function naturalVerticalBounds(element: HTMLElement): VerticalBounds {
 export function TokenComparer({
   initialText,
   initialResults,
+  initialHostedResults,
 }: TokenComparerProps) {
   const hasPreloadedOpenResults = OPEN_MODEL_PROFILES.every((profile) =>
     initialResults.some((result) => result.profile.id === profile.id),
   );
   const inputId = useId();
   const reorderHelpId = useId();
+  const addModelId = useId();
+  const modelCatalog = useMemo(
+    () => buildModelCatalog(initialResults),
+    [initialResults],
+  );
+  const initialModelOrder = useMemo(
+    () => defaultModelOrder(modelCatalog),
+    [modelCatalog],
+  );
+  const initialHostedSelection = HOSTED_MODEL_PROFILES
+    .filter((profile) => initialModelOrder.includes(profile.id))
+    .map((profile) => profile.id)
+    .join(",");
+  const hasPreloadedHostedResults = HOSTED_MODEL_PROFILES
+    .filter((profile) => initialModelOrder.includes(profile.id))
+    .every((profile) =>
+      initialHostedResults.some((result) => result.profile.id === profile.id),
+    );
   const requestId = useRef(0);
   const hostedAbortController = useRef<AbortController | null>(null);
+  const lastHostedTokenizedKey = useRef(
+    hasPreloadedHostedResults
+      ? `hosted:0:${initialText}:${initialHostedSelection}`
+      : "initial-hosted-results-missing",
+  );
   const rowElements = useRef(new Map<string, HTMLElement>());
   const previousRowPositions = useRef<Map<string, number> | null>(null);
   const dragState = useRef<DragState | null>(null);
@@ -120,27 +150,28 @@ export function TokenComparer({
   );
   const [retryVersion, setRetryVersion] = useState(0);
   const [hostedRetryVersion, setHostedRetryVersion] = useState(0);
-  const [hostedEnabled, setHostedEnabled] = useState(false);
-  const [hostedStatus, setHostedStatus] = useState<HostedStatus>("disabled");
-  const [hostedResults, setHostedResults] = useState<HostedResult[]>([]);
+  const [hostedStatus, setHostedStatus] = useState<HostedStatus>("ready");
+  const [hostedResults, setHostedResults] = useState<HostedResult[]>(
+    initialHostedResults,
+  );
   const [hostedError, setHostedError] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "loading" | "error">(
     hasPreloadedOpenResults ? "ready" : "loading",
   );
-  const [modelOrder, setModelOrder] = useState(() =>
-    Array.from(
-      new Set([
-        ...initialResults.map(resultKey),
-        ...OPEN_MODEL_PROFILES.map((profile) => profile.id),
-        ...HOSTED_MODEL_PROFILES.map((profile) => profile.id),
-      ]),
-    ),
-  );
+  const [modelOrder, setModelOrder] = useState(initialModelOrder);
+  const [selectedAddModelId, setSelectedAddModelId] = useState("");
   const modelOrderRef = useRef(modelOrder);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [reorderAnnouncement, setReorderAnnouncement] = useState("");
 
   modelOrderRef.current = modelOrder;
+
+  const activeHostedProfiles = HOSTED_MODEL_PROFILES.filter((profile) =>
+    modelOrder.includes(profile.id),
+  );
+  const activeHostedSelection = activeHostedProfiles
+    .map((profile) => profile.id)
+    .join(",");
 
   useLayoutEffect(() => {
     const previous = previousRowPositions.current;
@@ -255,14 +286,23 @@ export function TokenComparer({
   useEffect(() => {
     hostedAbortController.current?.abort();
 
-    if (!hostedEnabled) {
-      setHostedStatus("disabled");
+    if (activeHostedProfiles.length === 0) {
+      setHostedStatus("ready");
+      setHostedResults([]);
       setHostedError(null);
       return;
     }
     if (text.length === 0) {
       setHostedStatus("ready");
       setHostedResults([]);
+      setHostedError(null);
+      return;
+    }
+
+    const tokenizationKey =
+      `hosted:${hostedRetryVersion}:${text}:${activeHostedSelection}`;
+    if (lastHostedTokenizedKey.current === tokenizationKey) {
+      setHostedStatus("ready");
       setHostedError(null);
       return;
     }
@@ -274,9 +314,14 @@ export function TokenComparer({
 
     const timeout = window.setTimeout(async () => {
       try {
-        const nextResults = await compareHostedText(text, controller.signal);
+        const nextResults = await compareHostedText(
+          text,
+          controller.signal,
+          activeHostedProfiles,
+        );
         if (controller.signal.aborted) return;
         setHostedResults(nextResults);
+        lastHostedTokenizedKey.current = tokenizationKey;
         setHostedStatus("ready");
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -289,7 +334,7 @@ export function TokenComparer({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [hostedEnabled, hostedRetryVersion, text]);
+  }, [activeHostedSelection, hostedRetryVersion, text]);
 
   useEffect(() => {
     if (!draggingId) return;
@@ -344,6 +389,35 @@ export function TokenComparer({
       else next.add(tokenizerId);
       return next;
     });
+  }
+
+  function addModel(): void {
+    const current = modelOrderRef.current;
+    const addable = modelCatalog.filter(
+      (profile) => !current.includes(profile.id),
+    );
+    const profile =
+      addable.find((candidate) => candidate.id === selectedAddModelId) ??
+      addable[0];
+    if (!profile) return;
+
+    applyModelOrder([...current, profile.id]);
+    setSelectedAddModelId("");
+    setReorderAnnouncement(
+      `${profile.modelExamples} added at position ${current.length + 1}.`,
+    );
+  }
+
+  function removeModel(modelId: string, modelName: string): void {
+    if (dragState.current?.id === modelId) finishDrag();
+    const next = modelOrderRef.current.filter((id) => id !== modelId);
+    applyModelOrder(next);
+    setReducedTokenizerIds((current) => {
+      const updated = new Set(current);
+      updated.delete(modelId);
+      return updated;
+    });
+    setReorderAnnouncement(`${modelName} removed from the comparison.`);
   }
 
   function setRowElement(id: string, element: HTMLElement | null): void {
@@ -555,11 +629,43 @@ export function TokenComparer({
     );
   }
 
+  function renderRemoveButton(modelId: string, modelName: string) {
+    const label = `Remove ${modelName}`;
+
+    return (
+      <button
+        className="result-panel__remove"
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={() => removeModel(modelId, modelName)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m7.5 7.5 9 9m0-9-9 9" />
+        </svg>
+      </button>
+    );
+  }
+
   const byteCount = new TextEncoder().encode(text).length;
   const characterCount = Array.from(text).length;
+  const selectedModelIds = new Set(modelOrder);
+  const addableProfiles = modelCatalog.filter(
+    (profile) => !selectedModelIds.has(profile.id),
+  );
+  const effectiveAddModelId =
+    addableProfiles.find((profile) => profile.id === selectedAddModelId)?.id ??
+    addableProfiles[0]?.id ??
+    "";
+  const visibleLocalResults = results.filter((result) =>
+    selectedModelIds.has(resultKey(result)),
+  );
+  const visibleHostedResults = hostedResults.filter((result) =>
+    selectedModelIds.has(result.profile.id),
+  );
   const tokenCounts = [
-    ...results.map((result) => result.tokens.length),
-    ...hostedResults.flatMap((result) =>
+    ...visibleLocalResults.map((result) => result.tokens.length),
+    ...visibleHostedResults.flatMap((result) =>
       result.status === "ok" && result.tokenCount !== null ? [result.tokenCount] : [],
     ),
   ];
@@ -567,8 +673,8 @@ export function TokenComparer({
   const maximumTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
   const comparisonSummary =
     tokenCounts.length > 0
-      ? `${results.length + HOSTED_MODEL_PROFILES.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
-      : "0 models";
+      ? `${modelOrder.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
+      : `${modelOrder.length} models`;
   return (
     <section className="comparer" aria-label="Tokenizer comparison">
       <div className="input-panel">
@@ -610,21 +716,30 @@ export function TokenComparer({
         </div>
       </div>
 
-      <div className="hosted-control">
-        <p>
-          <strong>Hosted counts</strong>
-          <span>
-            {hostedEnabled
-              ? " Text is sent to Anthropic, Google, and xAI for the rows below."
-              : " Disabled by default. Click Enable to send the current text to Anthropic, Google, and xAI."}
-          </span>
-        </p>
+      <div className="model-picker">
+        <label htmlFor={addModelId}>Add a model or tokenizer</label>
+        <select
+          id={addModelId}
+          value={effectiveAddModelId}
+          disabled={addableProfiles.length === 0}
+          onChange={(event) => setSelectedAddModelId(event.target.value)}
+        >
+          {addableProfiles.length === 0 ? (
+            <option value="">All available models are shown</option>
+          ) : (
+            addableProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.modelExamples} — {profile.label}
+              </option>
+            ))
+          )}
+        </select>
         <button
           type="button"
-          aria-pressed={hostedEnabled}
-          onClick={() => setHostedEnabled((current) => !current)}
+          disabled={addableProfiles.length === 0}
+          onClick={addModel}
         >
-          {hostedEnabled ? "Disable" : "Enable"}
+          <span aria-hidden="true">+</span> Add
         </button>
       </div>
 
@@ -667,6 +782,7 @@ export function TokenComparer({
                       <strong>{localResult.tokens.length}</strong>
                       {localResult.tokens.length === 1 ? " token" : " tokens"}
                     </p>
+                    {renderRemoveButton(modelId, modelName)}
                     <button
                       className="result-panel__toggle"
                       type="button"
@@ -737,6 +853,7 @@ export function TokenComparer({
                     <p>
                       {status === "error" ? "Unavailable" : "Loading tokenizer…"}
                     </p>
+                    {renderRemoveButton(modelId, modelName)}
                     <button
                       className="result-panel__toggle"
                       type="button"
@@ -792,20 +909,20 @@ export function TokenComparer({
                 </div>
                 <div className="result-panel__actions">
                   <p aria-live="polite">
-                    {!hostedEnabled && "Off"}
-                    {hostedEnabled && text.length === 0 && "Waiting for text"}
-                    {hostedEnabled && text.length > 0 && hostedStatus === "loading" &&
+                    {text.length === 0 && "Waiting for text"}
+                    {text.length > 0 && hostedStatus === "loading" &&
                       "Counting…"}
-                    {hostedEnabled && hostedStatus === "error" && "Unavailable"}
-                    {hostedEnabled && hostedStatus === "ready" && isUnavailable &&
+                    {hostedStatus === "error" && "Unavailable"}
+                    {hostedStatus === "ready" && isUnavailable &&
                       "Unavailable"}
-                    {hostedEnabled && hostedStatus === "ready" && count !== null && (
+                    {hostedStatus === "ready" && count !== null && (
                       <>
                         <strong>{count}</strong>
                         {count === 1 ? " token" : " tokens"}
                       </>
                     )}
                   </p>
+                  {renderRemoveButton(modelId, modelName)}
                   <button
                     className="result-panel__toggle"
                     type="button"
@@ -831,28 +948,19 @@ export function TokenComparer({
                 inert={isReduced}
               >
                 <div className="result-panel__body-inner">
-                  {!hostedEnabled && (
-                    <div className="hosted-output-note">
-                      Hosted requests are off. {" "}
-                      <button type="button" onClick={() => setHostedEnabled(true)}>
-                        Enable hosted counts
-                      </button>
-                    </div>
-                  )}
-                  {hostedEnabled && text.length === 0 && (
+                  {text.length === 0 && (
                     <p className="hosted-output-note">Enter text above to request a count.</p>
                   )}
-                  {hostedEnabled && text.length > 0 && hostedStatus === "loading" && (
+                  {text.length > 0 && hostedStatus === "loading" && (
                     <p className="hosted-output-note">Contacting provider…</p>
                   )}
-                  {hostedEnabled && hostedStatus === "error" && (
+                  {hostedStatus === "error" && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {hostedEnabled && hostedStatus === "ready" && isUnavailable && (
+                  {hostedStatus === "ready" && isUnavailable && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {hostedEnabled &&
-                    hostedStatus === "ready" &&
+                  {hostedStatus === "ready" &&
                     result?.status === "ok" &&
                     result.tokens === null && (
                       <p className="hosted-output-note">
@@ -860,8 +968,7 @@ export function TokenComparer({
                         is provider reported.
                       </p>
                     )}
-                  {hostedEnabled &&
-                    hostedStatus === "ready" &&
+                  {hostedStatus === "ready" &&
                     result?.status === "ok" &&
                     result.tokens !== null && (
                       <TokenCard result={{ profile, tokens: result.tokens }} />
@@ -891,7 +998,7 @@ export function TokenComparer({
           </div>
         )}
 
-        {hostedEnabled && hostedStatus === "error" && (
+        {hostedStatus === "error" && activeHostedProfiles.length > 0 && (
           <div className="provider-error" role="alert">
             Hosted providers could not be reached. Local results remain available. {" "}
             <button

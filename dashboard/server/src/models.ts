@@ -1,9 +1,9 @@
 import type { Env, ModelDefinition, ProviderName } from "./types";
 
 const DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-5-5",
-  google: "gemini-3.8-flash",
-  xai: "grok-4",
+  anthropic: "claude-opus-5-5",
+  google: "gemini-4-argon",
+  xai: "grok-4.7",
 } as const;
 
 function enabled(value: string | undefined, defaultValue: boolean): boolean {

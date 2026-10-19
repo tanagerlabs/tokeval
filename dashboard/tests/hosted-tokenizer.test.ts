@@ -1,11 +1,38 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { compareHostedText, HostedApiError } from "../src/lib/hosted-tokenizer";
+import {
+  compareHostedText,
+  HOSTED_MODEL_PROFILES,
+  HostedApiError,
+} from "../src/lib/hosted-tokenizer";
+import { INITIAL_HOSTED_RESULTS } from "../src/lib/initial-hosted-results";
+import { INITIAL_TEXT } from "../src/lib/initial-tokenization";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("hosted tokenizer client", () => {
+  test("ships provider-verified first-load values with byte-safe Grok tokens", () => {
+    expect(
+      INITIAL_HOSTED_RESULTS.map((result) => ({
+        id: result.profile.id,
+        model: result.resolvedModel,
+        count: result.tokenCount,
+      })),
+    ).toEqual([
+      { id: "anthropic-default", model: "claude-opus-5-5", count: 25 },
+      { id: "gemini-default", model: "gemini-4-argon", count: 38 },
+      { id: "grok-default", model: "grok-4.7", count: 10 },
+    ]);
+
+    const grok = INITIAL_HOSTED_RESULTS.find(
+      (result) => result.profile.id === "grok-default",
+    );
+    expect(grok?.tokens?.flatMap((token) => token.bytes)).toEqual(
+      Array.from(new TextEncoder().encode(INITIAL_TEXT)),
+    );
+  });
+
   test("requests all hosted providers and normalizes count and byte results", async () => {
     const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(_input)).toBe("/api/v1/tokenize/compare");
@@ -127,5 +154,46 @@ describe("hosted tokenizer client", () => {
     ).rejects.toEqual(expect.objectContaining<Partial<HostedApiError>>({
       code: "NETWORK_OR_CORS",
     }));
+  });
+
+  test("requests only the hosted rows currently in the comparison", async () => {
+    const grokProfile = HOSTED_MODEL_PROFILES.find(
+      (profile) => profile.id === "grok-default",
+    );
+    expect(grokProfile).toBeDefined();
+
+    const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as {
+        providers: Array<{ provider: string; model: string }>;
+      };
+      expect(request.providers).toEqual([
+        { provider: "xai", model: "grok-default" },
+      ]);
+      return Response.json({
+        results: [{
+          requested_model: "grok-default",
+          resolved_model: "grok-test",
+          status: "ok",
+          token_count: 1,
+          tokens: [{
+            id: 1,
+            bytes: [120],
+            text: "x",
+            byte_start: 0,
+            byte_end: 1,
+          }],
+          cache: "disabled",
+        }],
+      });
+    });
+    vi.stubGlobal("fetch", upstream);
+
+    const results = await compareHostedText(
+      "x",
+      new AbortController().signal,
+      [grokProfile!],
+    );
+
+    expect(results.map((result) => result.profile.id)).toEqual(["grok-default"]);
   });
 });

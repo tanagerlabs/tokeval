@@ -17,8 +17,8 @@ afterEach(() => {
 });
 
 describe("Anthropic adapter", () => {
-  test("uses the current Claude Sonnet model by default", () => {
-    expect(model("anthropic-default").upstreamModel).toBe("claude-sonnet-5-5");
+  test("uses the current Claude Opus model by default", () => {
+    expect(model("anthropic-default").upstreamModel).toBe("claude-opus-5-5");
   });
 
   test("wraps plain text in one user message and normalizes the count", async () => {
@@ -81,8 +81,8 @@ describe("Anthropic adapter", () => {
 });
 
 describe("Gemini adapter", () => {
-  test("uses the current Gemini Flash model by default", () => {
-    expect(model("gemini-default").upstreamModel).toBe("gemini-3.8-flash");
+  test("uses the current Gemini flagship model by default", () => {
+    expect(model("gemini-default").upstreamModel).toBe("gemini-4-argon");
   });
 
   test("keeps the API key out of the URL", async () => {
