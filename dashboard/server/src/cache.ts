@@ -7,7 +7,9 @@ import type {
 } from "./types";
 
 const inFlight = new Map<string, Promise<ProviderSuccess>>();
+const baselineCounts = new Map<string, Promise<number>>();
 const CACHE_ORIGIN = "https://count-cache.internal";
+const BASELINE_CACHE_ORIGIN = "https://baseline-cache.internal";
 const DEFAULT_TTL_SECONDS = 300;
 const MAX_TTL_SECONDS = 3600;
 
@@ -28,6 +30,78 @@ async function digestHex(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+}
+
+async function baselineCacheRequest(
+  provider: ProviderName,
+  model: string,
+  wrapperId: string,
+): Promise<Request> {
+  const encoder = new TextEncoder();
+  const digest = await digestHex(
+    encoder.encode(`v1\u0000${provider}\u0000${model}\u0000${wrapperId}`),
+  );
+  return new Request(`${BASELINE_CACHE_ORIGIN}/v1/${provider}/${digest}`);
+}
+
+function isCachedBaseline(value: unknown): value is { count: number } {
+  if (typeof value !== "object" || value === null) return false;
+  const count = (value as { count?: unknown }).count;
+  return typeof count === "number" && Number.isSafeInteger(count) && count >= 0;
+}
+
+/**
+ * Cache model/wrapper overhead independently from user input. The in-memory
+ * promise coalesces work inside an isolate, while Cache API storage lets a new
+ * isolate reuse the same deterministic baseline.
+ */
+export async function cachedBaselineCount(
+  env: Env,
+  provider: ProviderName,
+  model: string,
+  wrapperId: string,
+  load: () => Promise<number>,
+): Promise<number> {
+  const key = `${provider}:${model}:${wrapperId}`;
+  const existing = baselineCounts.get(key);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const sharedCache = cacheApi();
+    const request = sharedCache
+      ? await baselineCacheRequest(provider, model, wrapperId)
+      : null;
+
+    if (sharedCache && request) {
+      const cached = await sharedCache.match(request);
+      if (cached) {
+        const value: unknown = await cached.json();
+        if (isCachedBaseline(value)) return value.count;
+      }
+    }
+
+    const count = await load();
+    if (sharedCache && request) {
+      await sharedCache.put(
+        request,
+        Response.json(
+          { count },
+          { headers: { "Cache-Control": `public, max-age=${MAX_TTL_SECONDS}` } },
+        ),
+      );
+    }
+    return count;
+  })();
+
+  baselineCounts.set(key, pending);
+  void pending.catch(() => {
+    if (baselineCounts.get(key) === pending) baselineCounts.delete(key);
+  });
+  return pending;
+}
+
+export function clearBaselineCountCache(): void {
+  baselineCounts.clear();
 }
 
 async function hmacHex(secret: string, value: string): Promise<string> {

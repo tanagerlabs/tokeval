@@ -73,15 +73,27 @@ describe("Worker request handling", () => {
   });
 
   test("returns count-only results and an independently disabled xAI row", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+    const upstream = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url.includes("anthropic")) return Response.json({ input_tokens: 8 });
-        if (url.includes("googleapis")) return Response.json({ totalTokens: 6 });
+        const body = JSON.parse(String(init?.body)) as {
+          messages?: Array<{ content: string }>;
+          contents?: Array<{ parts: Array<{ text: string }> }>;
+        };
+        if (url.includes("anthropic")) {
+          const content = body.messages?.[0]?.content ?? "";
+          return Response.json({
+            input_tokens: content === "secret phrase" ? 8 : 10 + Number(content.includes("secret phrase")),
+          });
+        }
+        if (url.includes("googleapis")) {
+          const content = body.contents?.[0]?.parts[0]?.text ?? "";
+          return Response.json({
+            totalTokens: content === "secret phrase" ? 6 : 10 + Number(content.includes("secret phrase")),
+          });
+        }
         throw new Error(`Unexpected upstream ${url}`);
-      }),
-    );
+      });
+    vi.stubGlobal("fetch", upstream);
     const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const env: Env = {
       ALLOWED_ORIGINS: "https://tokeval.test",
@@ -141,6 +153,7 @@ describe("Worker request handling", () => {
     expect(serializedLogs).not.toContain("secret phrase");
     expect(serializedLogs).not.toContain("anthropic-private-key");
     expect(serializedLogs).not.toContain("gemini-private-key");
+    expect(upstream).toHaveBeenCalledTimes(6);
   });
 
   test("logs xAI request metadata without logging reconstructable token data", async () => {

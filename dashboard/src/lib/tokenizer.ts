@@ -107,7 +107,14 @@ async function loadEncoding(encoding: EncodingName): Promise<LoadedEncoding> {
   })();
 
   encoderCache.set(encoding, pending);
-  return pending;
+  try {
+    return await pending;
+  } catch (error) {
+    // A stale deployment chunk or transient download failure must not poison
+    // every later attempt in this browser session.
+    if (encoderCache.get(encoding) === pending) encoderCache.delete(encoding);
+    throw error;
+  }
 }
 
 function decodeWholeToken(bytes: Uint8Array): string | null {
@@ -166,7 +173,17 @@ export async function tokenize(
   };
 }
 
-export async function tokenizeAll(text: string): Promise<TokenizationResult[]> {
-  return Promise.all(ENCODING_NAMES.map((encoding) => tokenize(text, encoding)));
+export async function tokenizeAll(
+  text: string,
+  profileIds: readonly string[] = ENCODING_NAMES.map(
+    (encoding) => TOKENIZER_PROFILES[encoding].id,
+  ),
+): Promise<TokenizationResult[]> {
+  const selected = new Set(profileIds);
+  return Promise.all(
+    ENCODING_NAMES
+      .filter((encoding) => selected.has(TOKENIZER_PROFILES[encoding].id))
+      .map((encoding) => tokenize(text, encoding)),
+  );
 }
 

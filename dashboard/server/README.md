@@ -43,9 +43,11 @@ response. No provider fabricates token IDs or boundaries when the upstream API
 only returns a count.
 
 Anthropic and Gemini results contain both `token_count`, the provider-reported
-complete structured-input count, and `content_token_count`, a median estimate
-derived from three wrapped-versus-empty-wrapper count differences. The accompanying
-`content_token_count_min` and `content_token_count_max` fields expose wrapper
+complete structured-input count, and `content_token_count`, an estimate derived
+from a wrapped-versus-empty-wrapper count difference. The normal path uses one
+context; two additional contexts are measured only when the primary
+differential is invalid. When fallbacks run, the median is used and
+`content_token_count_min` / `content_token_count_max` expose wrapper
 sensitivity. This is an approximation, not a provider tokenization breakdown.
 
 ## Cost and privacy controls
@@ -58,6 +60,8 @@ sensitivity. This is an approximation, not a provider tokenization breakdown.
 - Concurrent identical calls are coalesced within an isolate.
 - Anthropic and Gemini count-only successes can use a short-lived Cache API
   entry keyed by an HMAC. The cache key never contains raw text.
+- Empty-wrapper baselines contain no user text and are cached independently for
+  one hour by provider, pinned model, wrapper version, and context.
 - xAI token breakdowns are not persistently shared-cached because their bytes
   reconstruct the input.
 - Logs include provider/status, byte-length, latency, and cache status, but not

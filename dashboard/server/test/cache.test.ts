@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cachedCountOnlyRequest } from "../src/cache";
+import {
+  cachedBaselineCount,
+  cachedCountOnlyRequest,
+  clearBaselineCountCache,
+} from "../src/cache";
 import type { ProviderSuccess, RequestContext } from "../src/types";
 
 class MemoryCache {
@@ -35,6 +39,7 @@ function result(): ProviderSuccess {
 }
 
 afterEach(() => {
+  clearBaselineCountCache();
   vi.unstubAllGlobals();
 });
 
@@ -94,5 +99,36 @@ describe("count-only cache", () => {
 
     expect(value.cache).toBe("disabled");
     expect(load).toHaveBeenCalledOnce();
+  });
+});
+
+describe("estimate baseline cache", () => {
+  test("persists a model/wrapper baseline without storing user input", async () => {
+    const memory = new MemoryCache();
+    vi.stubGlobal("caches", { default: memory });
+    const firstLoad = vi.fn(async () => 12);
+
+    expect(await cachedBaselineCount(
+      {},
+      "anthropic",
+      "claude-test",
+      "content-estimate-v1:0",
+      firstLoad,
+    )).toBe(12);
+    clearBaselineCountCache();
+
+    const secondLoad = vi.fn(async () => 99);
+    expect(await cachedBaselineCount(
+      {},
+      "anthropic",
+      "claude-test",
+      "content-estimate-v1:0",
+      secondLoad,
+    )).toBe(12);
+    expect(firstLoad).toHaveBeenCalledOnce();
+    expect(secondLoad).not.toHaveBeenCalled();
+    const [key] = memory.values.keys();
+    expect(key).toContain("baseline-cache.internal");
+    expect(key).not.toContain("claude-test");
   });
 });

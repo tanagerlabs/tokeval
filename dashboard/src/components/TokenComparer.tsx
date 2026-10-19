@@ -36,7 +36,9 @@ interface TokenComparerProps {
   initialHostedResults: HostedResult[];
 }
 
-const CORE_MODEL_IDS = new Set(["openai-o200k", "openai-cl100k"]);
+const HOSTED_DEBOUNCE_MS = 650;
+const XAI_HOSTED_DEBOUNCE_MS = 1300;
+const CORE_MODEL_IDS = ["openai-o200k", "openai-cl100k"] as const;
 
 function resultKey(result: TokenizationResult): string {
   return result.profile.id || result.profile.encoding;
@@ -118,9 +120,10 @@ function EstimateBadge({ provider }: EstimateBadgeProps) {
       estimate
       <span className="estimate-badge__tooltip" id={tooltipId} role="tooltip">
         {providerName} does not expose raw token pieces for this model. TokEval
-        subtracts empty-wrapper counts from wrapped-text counts in three contexts
-        and uses the median. The estimate can differ from the provider&apos;s full
-        structured-input count.
+        subtracts an empty-wrapper count from the same wrapper containing your
+        text. Additional boundary contexts are used only if the primary
+        differential is invalid. The estimate can differ from the provider&apos;s
+        full structured-input count.
       </span>
     </span>
   );
@@ -174,14 +177,15 @@ export function TokenComparer({
   const initialOpenModelIds = OPEN_MODEL_PROFILES
     .filter((profile) => initialModelOrder.includes(profile.id))
     .map((profile) => profile.id);
-  const initialOpenSelection = initialOpenModelIds.join(",");
+  const initialCoreModelIds = CORE_MODEL_IDS.filter((id) =>
+    initialModelOrder.includes(id)
+  );
+  const hasPreloadedCoreResults = initialCoreModelIds.every((id) =>
+    initialResults.some((result) => result.profile.id === id),
+  );
   const hasPreloadedOpenResults = initialOpenModelIds.every((id) =>
     initialResults.some((result) => result.profile.id === id),
   );
-  const initialHostedSelection = HOSTED_MODEL_PROFILES
-    .filter((profile) => initialModelOrder.includes(profile.id))
-    .map((profile) => profile.id)
-    .join(",");
   const hasPreloadedHostedResults = HOSTED_MODEL_PROFILES
     .filter((profile) => initialModelOrder.includes(profile.id))
     .every((profile) =>
@@ -191,15 +195,15 @@ export function TokenComparer({
   const hostedAbortController = useRef<AbortController | null>(null);
   const lastHostedTokenizedKey = useRef(
     hasPreloadedHostedResults
-      ? `hosted:0:${initialText}:${initialHostedSelection}`
+      ? `hosted:0:${initialText}`
       : "initial-hosted-results-missing",
   );
   const rowElements = useRef(new Map<string, HTMLElement>());
   const previousRowPositions = useRef<Map<string, number> | null>(null);
   const dragState = useRef<DragState | null>(null);
   const lastTokenizedKey = useRef(
-    hasPreloadedOpenResults
-      ? `local:0:${initialText}:${initialOpenSelection}`
+    hasPreloadedCoreResults && hasPreloadedOpenResults
+      ? `local:0:${initialText}`
       : `initial:${initialText}`,
   );
   const [text, setText] = useState(initialText);
@@ -215,7 +219,7 @@ export function TokenComparer({
   );
   const [hostedError, setHostedError] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "loading" | "error">(
-    hasPreloadedOpenResults ? "ready" : "loading",
+    hasPreloadedCoreResults && hasPreloadedOpenResults ? "ready" : "loading",
   );
   const [modelOrder, setModelOrder] = useState(initialModelOrder);
   const [selectedAddModelId, setSelectedAddModelId] = useState("");
@@ -228,13 +232,19 @@ export function TokenComparer({
   const activeHostedProfiles = HOSTED_MODEL_PROFILES.filter((profile) =>
     modelOrder.includes(profile.id),
   );
-  const activeHostedSelection = activeHostedProfiles
-    .map((profile) => profile.id)
-    .join(",");
+  const activeCoreModelIds = CORE_MODEL_IDS.filter((id) =>
+    modelOrder.includes(id)
+  );
   const activeOpenModelIds = OPEN_MODEL_PROFILES
     .filter((profile) => modelOrder.includes(profile.id))
     .map((profile) => profile.id);
-  const activeOpenSelection = activeOpenModelIds.join(",");
+  const activeHostedProfilesRef = useRef(activeHostedProfiles);
+  const activeCoreModelIdsRef = useRef<readonly string[]>(activeCoreModelIds);
+  const activeOpenModelIdsRef = useRef<readonly string[]>(activeOpenModelIds);
+
+  activeHostedProfilesRef.current = activeHostedProfiles;
+  activeCoreModelIdsRef.current = activeCoreModelIds;
+  activeOpenModelIdsRef.current = activeOpenModelIds;
 
   useLayoutEffect(() => {
     const previous = previousRowPositions.current;
@@ -272,8 +282,7 @@ export function TokenComparer({
       return;
     }
 
-    const tokenizationKey =
-      `local:${retryVersion}:${text}:${activeOpenSelection}`;
+    const tokenizationKey = `local:${retryVersion}:${text}`;
     if (lastTokenizedKey.current === tokenizationKey) {
       setStatus("ready");
       return;
@@ -281,6 +290,15 @@ export function TokenComparer({
 
     let cancelled = false;
     const currentRequest = ++requestId.current;
+    // Selection is intentionally read through refs instead of being an effect
+    // dependency. Adding, removing, or reordering cards must not tokenize text;
+    // only a text edit (or an explicit retry) starts this work.
+    const activeCoreIds = [...activeCoreModelIdsRef.current];
+    const activeOpenIds = [...activeOpenModelIdsRef.current];
+    const activeLocalIds = new Set([...activeCoreIds, ...activeOpenIds]);
+    setResults((current) =>
+      current.filter((result) => activeLocalIds.has(resultKey(result)))
+    );
     setStatus("loading");
 
     const timeout = window.setTimeout(async () => {
@@ -296,18 +314,24 @@ export function TokenComparer({
         );
       };
 
-      const coreTask = import("../lib/tokenizer")
-        .then(({ tokenizeAll }) => tokenizeAll(text))
+      const activeCoreIdSet = new Set(activeCoreIds);
+      const activeOpenIdSet = new Set(activeOpenIds);
+      const coreTask = activeCoreIds.length === 0
+        ? Promise.resolve([] as TokenizationResult[])
+        : import("../lib/tokenizer")
+        .then(({ tokenizeAll }) => tokenizeAll(text, activeCoreIds))
         .then((next) => {
-          updateGroup(next, CORE_MODEL_IDS);
+          updateGroup(next, activeCoreIdSet);
           return next;
         });
-      const openTask = import("../lib/open-tokenizer-client")
+      const openTask = activeOpenIds.length === 0
+        ? Promise.resolve([] as TokenizationResult[])
+        : import("../lib/open-tokenizer-client")
         .then(({ tokenizeOpenModelsInWorker }) =>
-          tokenizeOpenModelsInWorker(text, activeOpenModelIds),
+          tokenizeOpenModelsInWorker(text, activeOpenIds),
         )
         .then((next) => {
-          updateGroup(next, new Set(activeOpenModelIds));
+          updateGroup(next, activeOpenIdSet);
           return next;
         });
       const outcomes = await Promise.allSettled([coreTask, openTask]);
@@ -315,7 +339,7 @@ export function TokenComparer({
 
       const failedGroups = outcomes.flatMap((outcome, index) =>
         outcome.status === "rejected"
-          ? [index === 0 ? CORE_MODEL_IDS : new Set(activeOpenModelIds)]
+          ? [index === 0 ? activeCoreIdSet : activeOpenIdSet]
           : [],
       );
       if (failedGroups.length > 0) {
@@ -350,12 +374,15 @@ export function TokenComparer({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [activeOpenSelection, retryVersion, text]);
+  }, [retryVersion, text]);
 
   useEffect(() => {
     hostedAbortController.current?.abort();
 
-    if (activeHostedProfiles.length === 0) {
+    // As with local tokenizers, list changes update this ref without starting a
+    // provider request. A text edit or explicit retry is the only trigger.
+    const requestedProfiles = [...activeHostedProfilesRef.current];
+    if (requestedProfiles.length === 0) {
       setHostedStatus("ready");
       setHostedResults([]);
       setHostedError(null);
@@ -368,8 +395,7 @@ export function TokenComparer({
       return;
     }
 
-    const tokenizationKey =
-      `hosted:${hostedRetryVersion}:${text}:${activeHostedSelection}`;
+    const tokenizationKey = `hosted:${hostedRetryVersion}:${text}`;
     if (lastHostedTokenizedKey.current === tokenizationKey) {
       setHostedStatus("ready");
       setHostedError(null);
@@ -381,12 +407,17 @@ export function TokenComparer({
     setHostedStatus("loading");
     setHostedError(null);
 
+    const hostedDebounceMs = requestedProfiles.some(
+      (profile) => profile.provider === "xai",
+    )
+      ? XAI_HOSTED_DEBOUNCE_MS
+      : HOSTED_DEBOUNCE_MS;
     const timeout = window.setTimeout(async () => {
       try {
         const nextResults = await compareHostedText(
           text,
           controller.signal,
-          activeHostedProfiles,
+          requestedProfiles,
         );
         if (controller.signal.aborted) return;
         setHostedResults(nextResults);
@@ -397,13 +428,13 @@ export function TokenComparer({
         setHostedError(error instanceof HostedApiError ? error.code : "REQUEST_FAILED");
         setHostedStatus("error");
       }
-    }, 650);
+    }, hostedDebounceMs);
 
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [activeHostedSelection, hostedRetryVersion, text]);
+  }, [hostedRetryVersion, text]);
 
   useEffect(() => {
     if (!draggingId) return;
@@ -763,7 +794,7 @@ export function TokenComparer({
         <div className="comparison-header__actions">
           <span aria-live="polite">
             {text.length > 0 && status === "loading" &&
-              `Updating ${2 + activeOpenModelIds.length} tokenizers…`}
+              `Updating ${activeCoreModelIds.length + activeOpenModelIds.length} tokenizers…`}
             {text.length > 0 && status === "error" &&
               "Could not update all tokenizers"}
             {(text.length === 0 || status === "ready") && comparisonSummary}
@@ -931,6 +962,8 @@ export function TokenComparer({
                         <><strong>0</strong> tokens</>
                       ) : status === "error" ? (
                         "Unavailable"
+                      ) : status === "ready" ? (
+                        "Edit text to calculate"
                       ) : (
                         "Loading tokenizer…"
                       )}
@@ -1029,6 +1062,8 @@ export function TokenComparer({
                     {text.length > 0 && hostedStatus === "error" && "Unavailable"}
                     {text.length > 0 && hostedStatus === "ready" && isUnavailable &&
                       "Unavailable"}
+                    {text.length > 0 && hostedStatus === "ready" && !result &&
+                      "Edit text to calculate"}
                     {text.length > 0 && hostedStatus === "ready" && displayCount !== null && (
                       <>
                         <strong>{displayCount}</strong>
@@ -1074,6 +1109,11 @@ export function TokenComparer({
                   )}
                   {text.length > 0 && hostedStatus === "ready" && isUnavailable && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
+                  )}
+                  {text.length > 0 && hostedStatus === "ready" && !result && (
+                    <p className="hosted-output-note">
+                      Edit the input text to calculate this model.
+                    </p>
                   )}
                   {text.length > 0 && hostedStatus === "ready" &&
                     result?.status === "ok" &&

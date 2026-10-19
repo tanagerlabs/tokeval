@@ -12,7 +12,7 @@
   },
   "limits": {
     "cpu_ms": 100,
-    "subrequests": 10
+    "subrequests": 16
   },
   "vars": {
     "ALLOWED_ORIGINS": "http://localhost:4321,http://127.0.0.1:4321,http://[::1]:4321",

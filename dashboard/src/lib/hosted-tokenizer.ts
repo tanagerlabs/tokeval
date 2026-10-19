@@ -77,6 +77,50 @@ export class HostedApiError extends Error {
   }
 }
 
+const SESSION_CACHE_LIMIT = 50;
+const SESSION_CACHE_TOKEN_LIMIT = 20_000;
+const sessionResults = new Map<string, HostedResult[]>();
+let sessionTokenWeight = 0;
+
+function resultTokenWeight(results: readonly HostedResult[]): number {
+  return results.reduce(
+    (total, result) => total + Math.max(1, result.tokens?.length ?? 0),
+    0,
+  );
+}
+
+function sessionCacheKey(
+  text: string,
+  profiles: readonly HostedModelProfile[],
+): string {
+  return `${profiles.map((profile) => profile.id).join(",")}\u0000${text}`;
+}
+
+function readSessionCache(key: string): HostedResult[] | null {
+  const cached = sessionResults.get(key);
+  if (!cached) return null;
+  sessionResults.delete(key);
+  sessionResults.set(key, cached);
+  return cached;
+}
+
+function writeSessionCache(key: string, results: HostedResult[]): void {
+  const existing = sessionResults.get(key);
+  if (existing) sessionTokenWeight -= resultTokenWeight(existing);
+  sessionResults.set(key, results);
+  sessionTokenWeight += resultTokenWeight(results);
+  while (
+    sessionResults.size > SESSION_CACHE_LIMIT ||
+    sessionTokenWeight > SESSION_CACHE_TOKEN_LIMIT
+  ) {
+    const oldest = sessionResults.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    const removed = sessionResults.get(oldest);
+    if (removed) sessionTokenWeight -= resultTokenWeight(removed);
+    sessionResults.delete(oldest);
+  }
+}
+
 function compareEndpoint(): string | null {
   const configured = import.meta.env.PUBLIC_HOSTED_TOKENIZER_API_URL?.trim();
   if (configured) {
@@ -188,6 +232,10 @@ export async function compareHostedText(
   signal: AbortSignal,
   profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
 ): Promise<HostedResult[]> {
+  const cacheKey = sessionCacheKey(text, profiles);
+  const cached = readSessionCache(cacheKey);
+  if (cached) return cached;
+
   const endpoint = compareEndpoint();
   if (!endpoint) throw new HostedApiError("API_NOT_CONFIGURED");
 
@@ -228,9 +276,23 @@ export async function compareHostedText(
   }
 
   const results = body.results.map(parseResult);
-  return profiles.map((profile) => {
+  const selectedResults = profiles.map((profile) => {
     const result = results.find((candidate) => candidate.profile.id === profile.id);
     if (!result) throw new HostedApiError("INVALID_RESPONSE");
     return result;
   });
+  if (selectedResults.every((result) => result.status === "ok")) {
+    writeSessionCache(cacheKey, selectedResults);
+  }
+  return selectedResults;
 }
+
+export const hostedTokenizerInternals = {
+  clearSessionCache(): void {
+    sessionResults.clear();
+    sessionTokenWeight = 0;
+  },
+  get sessionCacheSize(): number {
+    return sessionResults.size;
+  },
+};

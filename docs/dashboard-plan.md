@@ -6,11 +6,53 @@
 
 Astro + React app in `dashboard/` with side-by-side tokenizer comparison:
 
-- `src/components/TokenComparer.tsx` — top-level comparison UI (input + two result cards).
+- `src/components/TokenComparer.tsx` — top-level comparison UI with reorderable, add/remove model cards.
 - `src/components/TokenCard.tsx` — colored token breakdown: an `ol.token-stream` of token chips (text or byte-fragment hex) with IDs, byte spans in tooltips, `tabIndex=0` per token.
 - `src/lib/tokenizer.ts`, `token-bytes.ts` — tokenization result model with raw bytes/byte spans (byte fragments render as `‹hex›`, never fabricated text).
-- `src/lib/open-model-*.ts`, `open-tokenizer-client.ts`, `open-tokenizer.worker.ts` — open-weight tokenizers in a web worker.
+- `src/lib/open-model-*.ts`, `open-tokenizer-client.ts`, and the family-specific `open-tokenizer-*.worker.ts` entries — open-weight tokenizers in on-demand web workers.
 - Styling in `src/styles/global.css` (`.token-output` → `.token-stream` wrapped flex list, currently unbounded height); tests in `dashboard/tests/`.
+
+## Performance and request-cost roadmap
+
+Status as of 2026-10-19. The dashboard selection is the source of truth for
+work: only model/provider rows currently visible in the comparison may be
+tokenized locally or included in a hosted request when input changes. Collapsed
+rows remain visible and active; removed rows do not perform work.
+
+1. **Completed — reduce hosted estimator fan-out and persist baselines.**
+   Anthropic and Google now use one differential wrapper on the normal path,
+   persist empty-wrapper baselines in the Worker Cache API, and use the two
+   additional contexts only if the primary differential is invalid. Normal
+   cold-isolate provider fan-out is seven external calls across Anthropic,
+   Google, and xAI instead of fifteen; with warm baselines it is five. The
+   Worker subrequest ceiling retains headroom for the uncommon fallback path.
+2. **Completed — cache repeated hosted comparisons in the browser and debounce
+   xAI more conservatively.** A bounded 50-entry/20,000-token session-memory LRU
+   is keyed by exact input plus the visible hosted model IDs. Successful results
+   are reused; failures are not cached. Updates containing a visible xAI row use a 1.3
+   second trailing debounce; other hosted-only selections retain 650 ms.
+3. **Completed — make core tokenizer work selection-aware.** `tokenizeAll`
+   accepts visible core model IDs, so an unselected OpenAI vocabulary is neither
+   downloaded nor evaluated. The UI skips both core and open-model imports when
+   no visible row needs that tokenizer family.
+4. **Completed — split open-model workers and slim SentencePiece.** Separate
+   Llama/tiktoken, Hugging Face, and native SentencePiece workers load only for
+   visible rows in their family. The build strips three unused tokenizer models
+   embedded by the pinned SentencePiece dependency, and the byte-oriented model
+   loader avoids base64 expansion. The production SentencePiece worker measured
+   about 268 KiB gzip after this change; the default Llama worker measured about
+   3.6 KiB gzip.
+5. **Planned — cap or virtualize token-box rendering.** Preserve exact counts
+   and byte data while progressively rendering or windowing long breakdowns.
+   Count-only placeholder visuals should not create one DOM node per token.
+6. **Planned — persist pinned tokenizer artifacts and limit download
+   concurrency.** Cache licensed artifacts by revision/SHA in browser storage or
+   an immutable project-controlled CDN, disclose download sizes, and limit
+   simultaneous large artifact fetches.
+7. **Planned — consolidate install/build overhead and production telemetry.**
+   Evaluate npm workspaces for dependency hoisting, remove extraneous packages,
+   sample routine success logs while retaining errors and aggregate metrics, and
+   enforce per-chunk bundle budgets in CI.
 
 ## Next steps (planned)
 

@@ -35,7 +35,7 @@ describe("TokenComparer first render", () => {
     expect(html.match(/class="estimate-badge"/g)).toHaveLength(2);
     expect(html.match(/class="exact-badge"/g)).toHaveLength(3);
     expect(html).not.toContain("≈");
-    expect(html).toContain("subtracts empty-wrapper counts from wrapped-text counts");
+    expect(html).toContain("subtracts an empty-wrapper count from the same wrapper");
     expect(html).toContain("Anthropic reports 25 tokens for the");
     expect(html).toContain("Google reports 38 tokens for the");
     expect(html).toContain(

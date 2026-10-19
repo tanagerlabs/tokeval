@@ -1,3 +1,7 @@
+import {
+  cachedBaselineCount,
+  clearBaselineCountCache,
+} from "../cache";
 import { ProviderError } from "../errors";
 import type { Env, ModelDefinition, ProviderSuccess } from "../types";
 import {
@@ -10,6 +14,7 @@ import {
 } from "./shared";
 import {
   CONTENT_ESTIMATE_WRAPPERS,
+  isUsableContentEstimate,
   summarizeContentEstimate,
 } from "./content-estimate";
 
@@ -19,8 +24,6 @@ interface CountResult {
   count: number;
   requestId: string | null;
 }
-
-const baselineCounts = new Map<string, Promise<number>>();
 
 async function requireAnthropicOk(response: Response): Promise<void> {
   if (response.ok) return;
@@ -89,46 +92,48 @@ export async function countAnthropic(
     };
   }
 
-  const baselinePrefix = `${model.upstreamModel}\u0000${env.ANTHROPIC_WORKSPACE_ID?.trim() ?? ""}`;
-  const estimateOutcomes = Promise.allSettled(
-    CONTENT_ESTIMATE_WRAPPERS.map(async ({ prefix, suffix }, index) => {
-      const baselineKey = `${baselinePrefix}\u0000${index}`;
-      let baseline = baselineCounts.get(baselineKey);
-      if (!baseline) {
-        const pending = countMessage(`${prefix}${suffix}`).then(
+  async function measureWrapper(index: number): Promise<number> {
+    const wrapper = CONTENT_ESTIMATE_WRAPPERS[index]!;
+    const [baselineCount, wrapped] = await Promise.all([
+      cachedBaselineCount(
+        env,
+        "anthropic",
+        model.upstreamModel,
+        `content-estimate-v1:${index}`,
+        () => countMessage(`${wrapper.prefix}${wrapper.suffix}`).then(
           (result) => result.count,
-        );
-        baselineCounts.set(baselineKey, pending);
-        void pending.catch(() => {
-          if (baselineCounts.get(baselineKey) === pending) {
-            baselineCounts.delete(baselineKey);
-          }
-        });
-        baseline = pending;
-      }
+        ),
+      ),
+      countMessage(`${wrapper.prefix}${text}${wrapper.suffix}`),
+    ]);
+    return wrapped.count - baselineCount;
+  }
 
-      const [baselineCount, wrapped] = await Promise.all([
-        baseline,
-        countMessage(`${prefix}${text}${suffix}`),
-      ]);
-      return Math.max(1, wrapped.count - baselineCount);
-    }),
-  );
-
-  const [messageCount, outcomes] = await Promise.all([
+  const [messageCount, primaryOutcome] = await Promise.all([
     countMessage(text),
-    estimateOutcomes,
+    Promise.allSettled([measureWrapper(0)]).then(([outcome]) => outcome!),
   ]);
-  const estimate = summarizeContentEstimate(outcomes);
+  const outcomes = [primaryOutcome];
   if (
-    estimate.successfulWrappers !== CONTENT_ESTIMATE_WRAPPERS.length &&
+    primaryOutcome.status === "rejected" ||
+    !isUsableContentEstimate(primaryOutcome.value, messageCount.count)
+  ) {
+    outcomes.push(...await Promise.allSettled(
+      CONTENT_ESTIMATE_WRAPPERS.slice(1).map((_, index) =>
+        measureWrapper(index + 1)
+      ),
+    ));
+  }
+  const estimate = summarizeContentEstimate(outcomes, messageCount.count);
+  if (
+    outcomes.length > 1 &&
     env.LOG_PROVIDER_IO?.trim().toLowerCase() === "true"
   ) {
     console.warn(JSON.stringify({
-      event: "anthropic_content_estimate_partial",
+      event: "anthropic_content_estimate_fallback",
       model: model.upstreamModel,
       successful_wrappers: estimate.successfulWrappers,
-      total_wrappers: CONTENT_ESTIMATE_WRAPPERS.length,
+      attempted_wrappers: outcomes.length,
     }));
   }
 
@@ -154,6 +159,6 @@ export async function countAnthropic(
 export const anthropicInternals = {
   estimateWrappers: CONTENT_ESTIMATE_WRAPPERS,
   clearBaselineCache(): void {
-    baselineCounts.clear();
+    clearBaselineCountCache();
   },
 };

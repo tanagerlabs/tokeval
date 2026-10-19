@@ -19,11 +19,26 @@ export interface ContentEstimate {
   successfulWrappers: number;
 }
 
+export function isUsableContentEstimate(
+  value: number,
+  structuredCount: number,
+): boolean {
+  return Number.isSafeInteger(value) && value > 0 && value <= structuredCount;
+}
+
 export function summarizeContentEstimate(
   outcomes: readonly PromiseSettledResult<number>[],
+  maximum: number = Number.MAX_SAFE_INTEGER,
 ): ContentEstimate {
   const deltas = outcomes
-    .flatMap((outcome) => outcome.status === "fulfilled" ? [outcome.value] : [])
+    .flatMap((outcome) =>
+      outcome.status === "fulfilled" &&
+        Number.isSafeInteger(outcome.value) &&
+        outcome.value > 0 &&
+        outcome.value <= maximum
+        ? [outcome.value]
+        : []
+    )
     .sort((left, right) => left - right);
 
   return {

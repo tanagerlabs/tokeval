@@ -3,11 +3,13 @@ import {
   compareHostedText,
   HOSTED_MODEL_PROFILES,
   HostedApiError,
+  hostedTokenizerInternals,
 } from "../src/lib/hosted-tokenizer";
 import { INITIAL_HOSTED_RESULTS } from "../src/lib/initial-hosted-results";
 import { INITIAL_TEXT } from "../src/lib/initial-tokenization";
 
 afterEach(() => {
+  hostedTokenizerInternals.clearSessionCache();
   vi.unstubAllGlobals();
 });
 
@@ -239,5 +241,36 @@ describe("hosted tokenizer client", () => {
     );
 
     expect(results.map((result) => result.profile.id)).toEqual(["grok-default"]);
+  });
+
+  test("reuses successful results for the same visible rows during the session", async () => {
+    const grokProfile = HOSTED_MODEL_PROFILES.find(
+      (profile) => profile.id === "grok-default",
+    )!;
+    const upstream = vi.fn(async () => Response.json({
+      results: [{
+        requested_model: "grok-default",
+        resolved_model: "grok-test",
+        status: "ok",
+        token_count: 1,
+        content_token_count: 1,
+        content_count_kind: "exact",
+        tokens: [{
+          id: 1,
+          bytes: [120],
+          text: "x",
+          byte_start: 0,
+          byte_end: 1,
+        }],
+        cache: "disabled",
+      }],
+    }));
+    vi.stubGlobal("fetch", upstream);
+
+    await compareHostedText("x", new AbortController().signal, [grokProfile]);
+    await compareHostedText("x", new AbortController().signal, [grokProfile]);
+
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(hostedTokenizerInternals.sessionCacheSize).toBe(1);
   });
 });

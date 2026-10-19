@@ -6,7 +6,7 @@ import {
 import {
   piecesFromTokenStrings,
 } from "../src/lib/token-bytes";
-import { ENCODING_NAMES, tokenize } from "../src/lib/tokenizer";
+import { ENCODING_NAMES, tokenize, tokenizeAll } from "../src/lib/tokenizer";
 
 it("keeps the static first render aligned with the pinned encodings", async () => {
   const currentResults = await Promise.all(
@@ -52,6 +52,12 @@ describe.each(ENCODING_NAMES)("%s tokenizer", (encoding) => {
     expect(result.inputBytes).toBe(0);
     expect(result.tokens).toEqual([]);
   });
+});
+
+it("tokenizes only visible core model IDs when a selection is provided", async () => {
+  const results = await tokenizeAll("Hello", ["openai-o200k"]);
+
+  expect(results.map((result) => result.profile.id)).toEqual(["openai-o200k"]);
 });
 
 describe("open-model token byte reconstruction", () => {

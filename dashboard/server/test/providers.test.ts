@@ -67,12 +67,12 @@ describe("Anthropic adapter", () => {
       content_token_count: 1,
       content_count_kind: "estimated",
       content_token_count_min: 1,
-      content_token_count_max: 2,
+      content_token_count_max: 1,
       count_source: "hosted_message_count",
       supports_boundaries: false,
       provider_request_id: "req-a",
     });
-    expect(upstream).toHaveBeenCalledTimes(7);
+    expect(upstream).toHaveBeenCalledTimes(3);
   });
 
   test("maps a missing workspace selection to a specific error", async () => {
@@ -185,9 +185,9 @@ describe("Gemini adapter", () => {
       content_token_count: 2,
       content_count_kind: "estimated",
       content_token_count_min: 2,
-      content_token_count_max: 3,
+      content_token_count_max: 2,
     });
-    expect(upstream).toHaveBeenCalledTimes(7);
+    expect(upstream).toHaveBeenCalledTimes(3);
   });
 });
 
