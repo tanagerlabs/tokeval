@@ -23,7 +23,7 @@ describe.runIf(runRemoteTests)("pinned open-model tokenizers", () => {
         const expectedBytes = Array.from(new TextEncoder().encode(input));
         const results = await tokenizeOpenModels(input);
 
-        expect(results).toHaveLength(5);
+        expect(results).toHaveLength(6);
         if (input === INITIAL_TEXT) {
           const comparableResult = (result: (typeof results)[number]) => ({
             profileId: result.profile.id,
@@ -32,9 +32,16 @@ describe.runIf(runRemoteTests)("pinned open-model tokenizers", () => {
             tokens: result.tokens,
           });
 
-          expect(
-            INITIAL_RESULTS.slice(ENCODING_NAMES.length).map(comparableResult),
-          ).toEqual(results.map(comparableResult));
+          const seededResults = new Map(
+            INITIAL_RESULTS.slice(ENCODING_NAMES.length).map((result) => [
+              result.profile.id,
+              comparableResult(result),
+            ]),
+          );
+          for (const result of results) {
+            const seeded = seededResults.get(result.profile.id);
+            if (seeded) expect(comparableResult(result)).toEqual(seeded);
+          }
         }
         for (const result of results) {
           expect(result.tokens.flatMap((token) => token.bytes)).toEqual(
@@ -42,6 +49,13 @@ describe.runIf(runRemoteTests)("pinned open-model tokenizers", () => {
           );
         }
       }
+
+      const googleOnly = await tokenizeOpenModels("Hello", [
+        "google-gemini-3-pro-preview",
+      ]);
+      expect(googleOnly.map((result) => result.profile.id)).toEqual([
+        "google-gemini-3-pro-preview",
+      ]);
     },
     60_000,
   );

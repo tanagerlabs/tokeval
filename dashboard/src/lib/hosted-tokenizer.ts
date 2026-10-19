@@ -19,7 +19,13 @@ export interface HostedResult {
   profile: HostedModelProfile;
   resolvedModel: string | null;
   status: "ok" | "unavailable";
+  /** Provider-reported count for the complete request shape. */
   tokenCount: number | null;
+  /** Raw-content count when a provider exposes it, otherwise a labeled estimate. */
+  contentTokenCount: number | null;
+  contentCountKind: "exact" | "estimated" | null;
+  contentTokenCountMin: number | null;
+  contentTokenCountMax: number | null;
   tokens: TokenPiece[] | null;
   cache: "hit" | "miss" | "coalesced" | "disabled";
   error: HostedProviderError | null;
@@ -83,6 +89,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseOptionalCount(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new HostedApiError("INVALID_RESPONSE");
+  }
+  return value;
+}
+
 function parseTokens(value: unknown): TokenPiece[] | null {
   if (value === null) return null;
   if (!Array.isArray(value)) throw new HostedApiError("INVALID_RESPONSE");
@@ -136,12 +150,27 @@ function parseResult(value: unknown): HostedResult {
   ) {
     throw new HostedApiError("INVALID_RESPONSE");
   }
+  const contentTokenCount = parseOptionalCount(value.content_token_count);
+  const contentTokenCountMin = parseOptionalCount(value.content_token_count_min);
+  const contentTokenCountMax = parseOptionalCount(value.content_token_count_max);
+  const contentCountKind = value.content_count_kind ?? null;
+  if (
+    contentCountKind !== null &&
+    contentCountKind !== "exact" &&
+    contentCountKind !== "estimated"
+  ) {
+    throw new HostedApiError("INVALID_RESPONSE");
+  }
 
   return {
     profile,
     resolvedModel: typeof value.resolved_model === "string" ? value.resolved_model : null,
     status: value.status,
     tokenCount,
+    contentTokenCount,
+    contentCountKind,
+    contentTokenCountMin,
+    contentTokenCountMax,
     tokens: parseTokens(value.tokens),
     cache:
       value.cache === "hit" ||

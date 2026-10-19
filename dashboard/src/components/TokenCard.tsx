@@ -4,6 +4,20 @@ interface TokenCardProps {
   result: Pick<TokenizationResult, "profile" | "tokens">;
 }
 
+interface EmptyTokenOutputProps {
+  label: string;
+}
+
+export const EMPTY_TOKEN_OUTPUT_MESSAGE = "Enter some text above.";
+
+export function EmptyTokenOutput({ label }: EmptyTokenOutputProps) {
+  return (
+    <section className="token-output" aria-label={`${label} result`}>
+      <p className="empty-output">{EMPTY_TOKEN_OUTPUT_MESSAGE}</p>
+    </section>
+  );
+}
+
 function visibleText(text: string): string {
   if (text.length === 0) return "empty";
 
@@ -21,6 +35,10 @@ function byteHex(token: TokenPiece): string {
 
 export function TokenCard({ result }: TokenCardProps) {
   const { profile, tokens } = result;
+
+  if (tokens.length === 0) {
+    return <EmptyTokenOutput label={profile.label} />;
+  }
 
   return (
     <section className="token-output" aria-label={`${profile.label} result`}>
@@ -48,9 +66,6 @@ export function TokenCard({ result }: TokenCardProps) {
         })}
       </ol>
 
-      {tokens.length === 0 && (
-        <p className="empty-output">Enter some text above.</p>
-      )}
     </section>
   );
 }

@@ -25,6 +25,7 @@ describe("model catalog", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain("openai-cl100k");
     expect(ids).toContain("deepseek-v3.2");
+    expect(ids).toContain("google-gemini-3-pro-preview");
     expect(ids).toContain("cohere-command-a-plus");
   });
 });

@@ -5,8 +5,12 @@ generated from public local tokenizer artifacts.
 
 Implemented provider operations:
 
-- Anthropic structured-message input count (`count_tokens`), count only.
-- Gemini input count (`countTokens`), count only.
+- Anthropic structured-message input count (`count_tokens`) plus a clearly
+  labeled differential estimate of raw text tokens. IDs and boundaries remain
+  unavailable.
+- Gemini structured-input count (`countTokens`) plus a clearly labeled
+  differential estimate of raw text tokens for models without a supported
+  local tokenizer. IDs and boundaries remain unavailable.
 - xAI/Grok hosted tokenization (`tokenize-text`), including IDs and exact bytes.
 
 The Worker does not proxy inference, store prompt text, or implement users,
@@ -37,6 +41,12 @@ Content-Type: application/json
 Provider failures are returned independently inside a successful comparison
 response. No provider fabricates token IDs or boundaries when the upstream API
 only returns a count.
+
+Anthropic and Gemini results contain both `token_count`, the provider-reported
+complete structured-input count, and `content_token_count`, a median estimate
+derived from three wrapped-versus-empty-wrapper count differences. The accompanying
+`content_token_count_min` and `content_token_count_max` fields expose wrapper
+sensitivity. This is an approximation, not a provider tokenization breakdown.
 
 ## Cost and privacy controls
 
@@ -107,8 +117,8 @@ Wrangler listens on `http://localhost:8787`. Astro listens on
 `http://localhost:4321` and proxies `/api` requests to Wrangler. This also
 means remote development needs to forward only Astro's port 4321; the browser
 must not try to reach port 8787 on the client machine.
-Enable **Hosted counts** in the dashboard before text is sent to Anthropic or
-Gemini. The Worker can also be checked independently from `dashboard/`:
+Hosted rows are always active when they are present in the comparison. The
+Worker can also be checked independently from `dashboard/`:
 
 ```bash
 npm run server:check

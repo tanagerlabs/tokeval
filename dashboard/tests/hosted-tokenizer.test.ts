@@ -18,11 +18,31 @@ describe("hosted tokenizer client", () => {
         id: result.profile.id,
         model: result.resolvedModel,
         count: result.tokenCount,
+        contentCount: result.contentTokenCount,
+        contentCountKind: result.contentCountKind,
       })),
     ).toEqual([
-      { id: "anthropic-default", model: "claude-opus-5-5", count: 25 },
-      { id: "gemini-default", model: "gemini-4-argon", count: 38 },
-      { id: "grok-default", model: "grok-4.7", count: 10 },
+      {
+        id: "anthropic-default",
+        model: "claude-opus-5-5",
+        count: 25,
+        contentCount: 18,
+        contentCountKind: "estimated",
+      },
+      {
+        id: "gemini-default",
+        model: "gemini-4-argon",
+        count: 38,
+        contentCount: 8,
+        contentCountKind: "estimated",
+      },
+      {
+        id: "grok-default",
+        model: "grok-4.7",
+        count: 10,
+        contentCount: 10,
+        contentCountKind: "exact",
+      },
     ]);
 
     const grok = INITIAL_HOSTED_RESULTS.find(
@@ -53,6 +73,10 @@ describe("hosted tokenizer client", () => {
             resolved_model: "claude-test",
             status: "ok",
             token_count: 3,
+            content_token_count: 1,
+            content_count_kind: "estimated",
+            content_token_count_min: 1,
+            content_token_count_max: 2,
             tokens: null,
             cache: "miss",
           },
@@ -62,6 +86,10 @@ describe("hosted tokenizer client", () => {
             resolved_model: "gemini-test",
             status: "ok",
             token_count: 2,
+            content_token_count: 1,
+            content_count_kind: "estimated",
+            content_token_count_min: 1,
+            content_token_count_max: 2,
             tokens: null,
             cache: "hit",
           },
@@ -90,8 +118,24 @@ describe("hosted tokenizer client", () => {
     const results = await compareHostedText("hi", new AbortController().signal);
 
     expect(results).toMatchObject([
-      { profile: { id: "anthropic-default" }, tokenCount: 3, tokens: null },
-      { profile: { id: "gemini-default" }, tokenCount: 2, tokens: null },
+      {
+        profile: { id: "anthropic-default" },
+        tokenCount: 3,
+        contentTokenCount: 1,
+        contentCountKind: "estimated",
+        contentTokenCountMin: 1,
+        contentTokenCountMax: 2,
+        tokens: null,
+      },
+      {
+        profile: { id: "gemini-default" },
+        tokenCount: 2,
+        contentTokenCount: 1,
+        contentCountKind: "estimated",
+        contentTokenCountMin: 1,
+        contentTokenCountMax: 2,
+        tokens: null,
+      },
       {
         profile: { id: "grok-default" },
         tokenCount: 1,

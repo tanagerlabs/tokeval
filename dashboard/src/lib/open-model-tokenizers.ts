@@ -31,7 +31,10 @@ interface NativeSentencePieceTokenizer {
 
 const tokenizerCache = new Map<string, Promise<HuggingFaceTokenizer>>();
 let llamaTokenizer: Promise<LoadedLlamaTokenizer> | undefined;
-let grokTokenizer: Promise<NativeSentencePieceTokenizer> | undefined;
+const nativeSentencePieceTokenizers = new Map<
+  string,
+  Promise<NativeSentencePieceTokenizer>
+>();
 const utf8Encoder = new TextEncoder();
 const fatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -50,6 +53,13 @@ function encodeBase64(value: ArrayBuffer): string {
   }
 
   return btoa(binary);
+}
+
+async function sha256Hex(value: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", value);
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 function decodeWholeToken(bytes: Uint8Array): string | null {
@@ -140,13 +150,25 @@ async function loadLlamaTokenizer(
 async function loadNativeSentencePieceTokenizer(
   profile: OpenModelTokenizerProfile,
 ): Promise<NativeSentencePieceTokenizer> {
-  if (grokTokenizer) return grokTokenizer;
+  const cached = nativeSentencePieceTokenizers.get(profile.id);
+  if (cached) return cached;
 
   const pending = (async () => {
-    if (!profile.artifactUrl) throw new Error("Missing Grok tokenizer URL.");
+    if (!profile.artifactUrl) {
+      throw new Error(`Missing ${profile.label} tokenizer URL.`);
+    }
     const response = await fetch(profile.artifactUrl);
     if (!response.ok) {
-      throw new Error(`Could not load Grok tokenizer (${response.status}).`);
+      throw new Error(
+        `Could not load ${profile.label} tokenizer (${response.status}).`,
+      );
+    }
+    const model = await response.arrayBuffer();
+    if (
+      profile.artifactSha256 &&
+      await sha256Hex(model) !== profile.artifactSha256
+    ) {
+      throw new Error(`${profile.label} tokenizer failed its SHA-256 check.`);
     }
 
     const { SentencePieceProcessor } = await import(
@@ -154,14 +176,16 @@ async function loadNativeSentencePieceTokenizer(
     );
     const tokenizer = new SentencePieceProcessor();
     await tokenizer.loadFromB64StringModel(
-      encodeBase64(await response.arrayBuffer()),
+      encodeBase64(model),
     );
     return tokenizer;
   })();
 
-  grokTokenizer = pending;
+  nativeSentencePieceTokenizers.set(profile.id, pending);
   void pending.catch(() => {
-    if (grokTokenizer === pending) grokTokenizer = undefined;
+    if (nativeSentencePieceTokenizers.get(profile.id) === pending) {
+      nativeSentencePieceTokenizers.delete(profile.id);
+    }
   });
   return pending;
 }
@@ -256,15 +280,19 @@ async function tokenizeNativeSentencePiece(
 
 export async function tokenizeOpenModels(
   text: string,
+  profileIds?: readonly string[],
 ): Promise<TokenizationResult[]> {
+  const selectedIds = profileIds ? new Set(profileIds) : null;
   return Promise.all(
-    OPEN_MODEL_PROFILES.map((profile) => {
-      if (profile.decoder === "tiktoken") return tokenizeLlama(text, profile);
-      if (profile.decoder === "native_sentencepiece") {
-        return tokenizeNativeSentencePiece(text, profile);
-      }
-      return tokenizeHuggingFace(text, profile);
-    }),
+    OPEN_MODEL_PROFILES
+      .filter((profile) => !selectedIds || selectedIds.has(profile.id))
+      .map((profile) => {
+        if (profile.decoder === "tiktoken") return tokenizeLlama(text, profile);
+        if (profile.decoder === "native_sentencepiece") {
+          return tokenizeNativeSentencePiece(text, profile);
+        }
+        return tokenizeHuggingFace(text, profile);
+      }),
   );
 }
 

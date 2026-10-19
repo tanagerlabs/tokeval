@@ -68,9 +68,9 @@ async function persistentCacheRequest(
   }
   const digest = await hmacHex(
     env.CACHE_HMAC_SECRET,
-    `v1\u0000${provider}\u0000${model}\u0000${text}`,
+    `v3\u0000${provider}\u0000${model}\u0000${text}`,
   );
-  return new Request(`${CACHE_ORIGIN}/v1/${provider}/${encodeURIComponent(model)}/${digest}`);
+  return new Request(`${CACHE_ORIGIN}/v3/${provider}/${encodeURIComponent(model)}/${digest}`);
 }
 
 function withCacheStatus(result: ProviderSuccess, cache: CacheStatus): ProviderSuccess {

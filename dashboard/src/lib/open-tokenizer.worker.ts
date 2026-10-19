@@ -5,13 +5,14 @@ import { tokenizeOpenModels } from "./open-model-tokenizers";
 interface TokenizeRequest {
   id: number;
   text: string;
+  profileIds: string[];
 }
 
 self.onmessage = async (event: MessageEvent<TokenizeRequest>) => {
-  const { id, text } = event.data;
+  const { id, text, profileIds } = event.data;
 
   try {
-    const results = await tokenizeOpenModels(text);
+    const results = await tokenizeOpenModels(text, profileIds);
     self.postMessage({ id, results });
   } catch (error) {
     self.postMessage({

@@ -6,6 +6,7 @@ export type CountSource =
   | "hosted_token_breakdown";
 
 export type CacheStatus = "hit" | "miss" | "coalesced" | "disabled";
+export type ContentCountKind = "exact" | "estimated";
 
 export type ProviderErrorCode =
   | "FEATURE_DISABLED"
@@ -36,6 +37,10 @@ export interface ProviderSuccess {
   status: "ok";
   count_source: CountSource;
   token_count: number;
+  content_token_count: number | null;
+  content_count_kind: ContentCountKind | null;
+  content_token_count_min: number | null;
+  content_token_count_max: number | null;
   supports_boundaries: boolean;
   token_ids: number[] | null;
   tokens: HostedToken[] | null;
@@ -50,6 +55,10 @@ export interface ProviderFailure {
   status: "unavailable";
   count_source: CountSource;
   token_count: null;
+  content_token_count: null;
+  content_count_kind: null;
+  content_token_count_min: null;
+  content_token_count_max: null;
   supports_boundaries: boolean;
   token_ids: null;
   tokens: null;

@@ -27,7 +27,8 @@ import {
 } from "../lib/tokenization-results";
 import type { TokenizationResult } from "../lib/tokenizer";
 import { ProviderLogo } from "./ProviderLogo";
-import { TokenCard } from "./TokenCard";
+import { EmptyTokenOutput, TokenCard } from "./TokenCard";
+import { TokenCountPlaceholder } from "./TokenCountPlaceholder";
 
 interface TokenComparerProps {
   initialText: string;
@@ -36,7 +37,6 @@ interface TokenComparerProps {
 }
 
 const CORE_MODEL_IDS = new Set(["openai-o200k", "openai-cl100k"]);
-const OPEN_MODEL_IDS = new Set(OPEN_MODEL_PROFILES.map((profile) => profile.id));
 
 function resultKey(result: TokenizationResult): string {
   return result.profile.id || result.profile.encoding;
@@ -64,7 +64,7 @@ interface DragState {
   id: string;
   modelName: string;
   pointerId: number;
-  handle: HTMLButtonElement;
+  handle: HTMLElement;
   grabOffset: number;
   clientY: number;
   lastClientY: number;
@@ -79,10 +79,63 @@ const REORDER_ANIMATION = {
 };
 
 const REVERSE_DIRECTION_HYSTERESIS = 24;
+const CARD_DRAG_EXCLUSION_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  ".result-panel__name h2",
+  ".result-panel__name code",
+  ".result-panel__actions > p",
+  ".estimate-badge",
+  ".exact-badge",
+  ".token",
+  ".empty-output",
+  ".hosted-output-note",
+  ".result-panel__revision",
+].join(",");
 
 interface VerticalBounds {
   top: number;
   height: number;
+}
+
+interface EstimateBadgeProps {
+  provider: "anthropic" | "google";
+}
+
+function EstimateBadge({ provider }: EstimateBadgeProps) {
+  const tooltipId = useId();
+  const providerName = provider === "anthropic" ? "Anthropic" : "Google";
+
+  return (
+    <span
+      className="estimate-badge"
+      tabIndex={0}
+      aria-describedby={tooltipId}
+    >
+      estimate
+      <span className="estimate-badge__tooltip" id={tooltipId} role="tooltip">
+        {providerName} does not expose raw token pieces for this model. TokEval
+        subtracts empty-wrapper counts from wrapped-text counts in three contexts
+        and uses the median. The estimate can differ from the provider&apos;s full
+        structured-input count.
+      </span>
+    </span>
+  );
+}
+
+function ExactBadge() {
+  return (
+    <span
+      className="exact-badge"
+      aria-label="Exact raw-content token count"
+      title="Exact raw-content token count from exposed tokenizer output."
+    >
+      exact
+    </span>
+  );
 }
 
 function naturalVerticalBounds(element: HTMLElement): VerticalBounds {
@@ -107,9 +160,6 @@ export function TokenComparer({
   initialResults,
   initialHostedResults,
 }: TokenComparerProps) {
-  const hasPreloadedOpenResults = OPEN_MODEL_PROFILES.every((profile) =>
-    initialResults.some((result) => result.profile.id === profile.id),
-  );
   const inputId = useId();
   const reorderHelpId = useId();
   const addModelId = useId();
@@ -120,6 +170,13 @@ export function TokenComparer({
   const initialModelOrder = useMemo(
     () => defaultModelOrder(modelCatalog),
     [modelCatalog],
+  );
+  const initialOpenModelIds = OPEN_MODEL_PROFILES
+    .filter((profile) => initialModelOrder.includes(profile.id))
+    .map((profile) => profile.id);
+  const initialOpenSelection = initialOpenModelIds.join(",");
+  const hasPreloadedOpenResults = initialOpenModelIds.every((id) =>
+    initialResults.some((result) => result.profile.id === id),
   );
   const initialHostedSelection = HOSTED_MODEL_PROFILES
     .filter((profile) => initialModelOrder.includes(profile.id))
@@ -141,7 +198,9 @@ export function TokenComparer({
   const previousRowPositions = useRef<Map<string, number> | null>(null);
   const dragState = useRef<DragState | null>(null);
   const lastTokenizedKey = useRef(
-    hasPreloadedOpenResults ? `all:0:${initialText}` : `initial:${initialText}`,
+    hasPreloadedOpenResults
+      ? `local:0:${initialText}:${initialOpenSelection}`
+      : `initial:${initialText}`,
   );
   const [text, setText] = useState(initialText);
   const [results, setResults] = useState(initialResults);
@@ -172,6 +231,10 @@ export function TokenComparer({
   const activeHostedSelection = activeHostedProfiles
     .map((profile) => profile.id)
     .join(",");
+  const activeOpenModelIds = OPEN_MODEL_PROFILES
+    .filter((profile) => modelOrder.includes(profile.id))
+    .map((profile) => profile.id);
+  const activeOpenSelection = activeOpenModelIds.join(",");
 
   useLayoutEffect(() => {
     const previous = previousRowPositions.current;
@@ -204,7 +267,13 @@ export function TokenComparer({
   }, [modelOrder]);
 
   useEffect(() => {
-    const tokenizationKey = `all:${retryVersion}:${text}`;
+    if (text.length === 0) {
+      setStatus("ready");
+      return;
+    }
+
+    const tokenizationKey =
+      `local:${retryVersion}:${text}:${activeOpenSelection}`;
     if (lastTokenizedKey.current === tokenizationKey) {
       setStatus("ready");
       return;
@@ -235,10 +304,10 @@ export function TokenComparer({
         });
       const openTask = import("../lib/open-tokenizer-client")
         .then(({ tokenizeOpenModelsInWorker }) =>
-          tokenizeOpenModelsInWorker(text),
+          tokenizeOpenModelsInWorker(text, activeOpenModelIds),
         )
         .then((next) => {
-          updateGroup(next, OPEN_MODEL_IDS);
+          updateGroup(next, new Set(activeOpenModelIds));
           return next;
         });
       const outcomes = await Promise.allSettled([coreTask, openTask]);
@@ -246,7 +315,7 @@ export function TokenComparer({
 
       const failedGroups = outcomes.flatMap((outcome, index) =>
         outcome.status === "rejected"
-          ? [index === 0 ? CORE_MODEL_IDS : OPEN_MODEL_IDS]
+          ? [index === 0 ? CORE_MODEL_IDS : new Set(activeOpenModelIds)]
           : [],
       );
       if (failedGroups.length > 0) {
@@ -281,7 +350,7 @@ export function TokenComparer({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [retryVersion, text]);
+  }, [activeOpenSelection, retryVersion, text]);
 
   useEffect(() => {
     hostedAbortController.current?.abort();
@@ -460,11 +529,17 @@ export function TokenComparer({
   }
 
   function beginDrag(
-    event: PointerEvent<HTMLButtonElement>,
+    event: PointerEvent<HTMLElement>,
     modelId: string,
     modelName: string,
   ): void {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest(CARD_DRAG_EXCLUSION_SELECTOR)
+    ) {
+      return;
+    }
 
     const element = rowElements.current.get(modelId);
     if (!element) return;
@@ -578,10 +653,11 @@ export function TokenComparer({
   }
 
   function reorderWithKeyboard(
-    event: KeyboardEvent<HTMLButtonElement>,
+    event: KeyboardEvent<HTMLElement>,
     modelId: string,
     modelName: string,
   ): void {
+    if (event.target !== event.currentTarget) return;
     const current = modelOrderRef.current;
     const fromIndex = current.indexOf(modelId);
     let toIndex = fromIndex;
@@ -599,33 +675,6 @@ export function TokenComparer({
     applyModelOrder(moveItem(current, fromIndex, toIndex));
     setReorderAnnouncement(
       `${modelName} moved to position ${toIndex + 1} of ${current.length}.`,
-    );
-  }
-
-  function renderDragHandle(modelId: string, modelName: string) {
-    const label = `Reorder ${modelName}`;
-
-    return (
-      <button
-        className="result-panel__drag-handle"
-        type="button"
-        aria-label={label}
-        aria-describedby={reorderHelpId}
-        title={`${label} (drag or use arrow keys)`}
-        onPointerDown={(event) => beginDrag(event, modelId, modelName)}
-        onPointerUp={(event) => finishDrag(event.pointerId)}
-        onPointerCancel={(event) => finishDrag(event.pointerId)}
-        onKeyDown={(event) => reorderWithKeyboard(event, modelId, modelName)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="8" cy="7" r="1.25" />
-          <circle cx="16" cy="7" r="1.25" />
-          <circle cx="8" cy="12" r="1.25" />
-          <circle cx="16" cy="12" r="1.25" />
-          <circle cx="8" cy="17" r="1.25" />
-          <circle cx="16" cy="17" r="1.25" />
-        </svg>
-      </button>
     );
   }
 
@@ -663,12 +712,17 @@ export function TokenComparer({
   const visibleHostedResults = hostedResults.filter((result) =>
     selectedModelIds.has(result.profile.id),
   );
-  const tokenCounts = [
-    ...visibleLocalResults.map((result) => result.tokens.length),
-    ...visibleHostedResults.flatMap((result) =>
-      result.status === "ok" && result.tokenCount !== null ? [result.tokenCount] : [],
-    ),
-  ];
+  const tokenCounts = text.length === 0
+    ? modelOrder.map(() => 0)
+    : [
+        ...visibleLocalResults.map((result) => result.tokens.length),
+        ...visibleHostedResults.flatMap((result) =>
+          result.status === "ok" &&
+          (result.contentTokenCount !== null || result.tokenCount !== null)
+            ? [result.contentTokenCount ?? result.tokenCount!]
+            : [],
+        ),
+      ];
   const minimumTokens = tokenCounts.length > 0 ? Math.min(...tokenCounts) : 0;
   const maximumTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
   const comparisonSummary =
@@ -708,10 +762,11 @@ export function TokenComparer({
         <span>Comparison</span>
         <div className="comparison-header__actions">
           <span aria-live="polite">
-            {status === "loading" &&
-              `Updating ${2 + OPEN_MODEL_PROFILES.length} tokenizers…`}
-            {status === "error" && "Could not update all tokenizers"}
-            {status === "ready" && comparisonSummary}
+            {text.length > 0 && status === "loading" &&
+              `Updating ${2 + activeOpenModelIds.length} tokenizers…`}
+            {text.length > 0 && status === "error" &&
+              "Could not update all tokenizers"}
+            {(text.length === 0 || status === "ready") && comparisonSummary}
           </span>
         </div>
       </div>
@@ -744,14 +799,15 @@ export function TokenComparer({
       </div>
 
       <p className="visually-hidden" id={reorderHelpId}>
-        Drag to reorder, or use the up and down arrow keys. Home and End move a
-        model to the start or end of the list.
+        Drag the card surface to reorder, or focus the card and use the up and
+        down arrow keys. Home and End move a model to the start or end of the
+        list. Text, token boxes, and card controls do not start dragging.
       </p>
       <p className="visually-hidden" aria-live="polite" aria-atomic="true">
         {reorderAnnouncement}
       </p>
       <div
-        className={`results-list ${status === "loading" ? "is-loading" : ""} ${draggingId ? "results-list--dragging" : ""}`}
+        className={`results-list ${text.length > 0 && status === "loading" ? "is-loading" : ""} ${draggingId ? "results-list--dragging" : ""}`}
       >
         {modelOrder.map((modelId) => {
           const localResult = results.find(
@@ -761,6 +817,9 @@ export function TokenComparer({
           if (localResult) {
             const isReduced = reducedTokenizerIds.has(modelId);
             const modelName = localResult.profile.modelExamples;
+            const displayCount = text.length === 0
+              ? 0
+              : localResult.tokens.length;
             const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
 
             return (
@@ -768,6 +827,12 @@ export function TokenComparer({
                 className={`result-panel ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
                 key={modelId}
                 ref={(element) => setRowElement(modelId, element)}
+                tabIndex={0}
+                aria-describedby={reorderHelpId}
+                onPointerDown={(event) => beginDrag(event, modelId, modelName)}
+                onPointerUp={(event) => finishDrag(event.pointerId)}
+                onPointerCancel={(event) => finishDrag(event.pointerId)}
+                onKeyDown={(event) => reorderWithKeyboard(event, modelId, modelName)}
               >
                 <header className="result-panel__header">
                   <div className="result-panel__identity">
@@ -778,11 +843,11 @@ export function TokenComparer({
                     </div>
                   </div>
                   <div className="result-panel__actions">
+                    <ExactBadge />
                     <p>
-                      <strong>{localResult.tokens.length}</strong>
-                      {localResult.tokens.length === 1 ? " token" : " tokens"}
+                      <strong>{displayCount}</strong>
+                      {displayCount === 1 ? " token" : " tokens"}
                     </p>
-                    {renderRemoveButton(modelId, modelName)}
                     <button
                       className="result-panel__toggle"
                       type="button"
@@ -799,7 +864,7 @@ export function TokenComparer({
                         <path d="m7 14 5-5 5 5" />
                       </svg>
                     </button>
-                    {renderDragHandle(modelId, modelName)}
+                    {renderRemoveButton(modelId, modelName)}
                   </div>
                 </header>
                 <div
@@ -808,7 +873,11 @@ export function TokenComparer({
                   inert={isReduced}
                 >
                   <div className="result-panel__body-inner">
-                    <TokenCard result={localResult} />
+                    {text.length === 0 ? (
+                      <EmptyTokenOutput label={localResult.profile.label} />
+                    ) : (
+                      <TokenCard result={localResult} />
+                    )}
                     <p className="result-panel__revision">
                       Local · {localResult.profile.sourceUrl ? (
                         <a
@@ -840,6 +909,12 @@ export function TokenComparer({
                 className={`result-panel result-panel--pending ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
                 key={modelId}
                 ref={(element) => setRowElement(modelId, element)}
+                tabIndex={0}
+                aria-describedby={reorderHelpId}
+                onPointerDown={(event) => beginDrag(event, modelId, modelName)}
+                onPointerUp={(event) => finishDrag(event.pointerId)}
+                onPointerCancel={(event) => finishDrag(event.pointerId)}
+                onKeyDown={(event) => reorderWithKeyboard(event, modelId, modelName)}
               >
                 <header className="result-panel__header">
                   <div className="result-panel__identity">
@@ -850,10 +925,16 @@ export function TokenComparer({
                     </div>
                   </div>
                   <div className="result-panel__actions">
+                    <ExactBadge />
                     <p>
-                      {status === "error" ? "Unavailable" : "Loading tokenizer…"}
+                      {text.length === 0 ? (
+                        <><strong>0</strong> tokens</>
+                      ) : status === "error" ? (
+                        "Unavailable"
+                      ) : (
+                        "Loading tokenizer…"
+                      )}
                     </p>
-                    {renderRemoveButton(modelId, modelName)}
                     <button
                       className="result-panel__toggle"
                       type="button"
@@ -870,9 +951,23 @@ export function TokenComparer({
                         <path d="m7 14 5-5 5 5" />
                       </svg>
                     </button>
-                    {renderDragHandle(modelId, modelName)}
+                    {renderRemoveButton(modelId, modelName)}
                   </div>
                 </header>
+                {text.length === 0 && (
+                  <div
+                    className="result-panel__body"
+                    aria-hidden={isReduced}
+                    inert={isReduced}
+                  >
+                    <div className="result-panel__body-inner">
+                      <EmptyTokenOutput label={pendingProfile.label} />
+                      <p className="result-panel__revision">
+                        Local · {pendingProfile.encoding}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </article>
             );
           }
@@ -891,6 +986,14 @@ export function TokenComparer({
           const isUnavailable = result?.status === "unavailable";
           const rowError = isUnavailable ? result.error?.code ?? null : hostedError;
           const count = result?.status === "ok" ? result.tokenCount : null;
+          const contentCount = result?.status === "ok"
+            ? result.contentTokenCount
+            : null;
+          const displayCount = text.length === 0 ? 0 : contentCount ?? count;
+          const usesEstimate = profile.provider === "anthropic" ||
+            profile.provider === "google";
+          const isEstimated = text.length > 0 && result?.status === "ok" &&
+            result.contentCountKind === "estimated";
           const resolvedModel = result?.resolvedModel ?? profile.encoding;
 
           return (
@@ -898,6 +1001,12 @@ export function TokenComparer({
               className={`result-panel result-panel--hosted ${isReduced ? "result-panel--reduced" : ""} ${draggingId === modelId ? "result-panel--dragging" : ""}`}
               key={modelId}
               ref={(element) => setRowElement(modelId, element)}
+              tabIndex={0}
+              aria-describedby={reorderHelpId}
+              onPointerDown={(event) => beginDrag(event, modelId, modelName)}
+              onPointerUp={(event) => finishDrag(event.pointerId)}
+              onPointerCancel={(event) => finishDrag(event.pointerId)}
+              onKeyDown={(event) => reorderWithKeyboard(event, modelId, modelName)}
             >
               <header className="result-panel__header">
                 <div className="result-panel__identity">
@@ -908,21 +1017,27 @@ export function TokenComparer({
                   </div>
                 </div>
                 <div className="result-panel__actions">
+                  {usesEstimate && profile.provider !== "xai" ? (
+                    <EstimateBadge provider={profile.provider} />
+                  ) : (
+                    <ExactBadge />
+                  )}
                   <p aria-live="polite">
-                    {text.length === 0 && "Waiting for text"}
+                    {text.length === 0 && <><strong>0</strong> tokens</>}
                     {text.length > 0 && hostedStatus === "loading" &&
                       "Counting…"}
-                    {hostedStatus === "error" && "Unavailable"}
-                    {hostedStatus === "ready" && isUnavailable &&
+                    {text.length > 0 && hostedStatus === "error" && "Unavailable"}
+                    {text.length > 0 && hostedStatus === "ready" && isUnavailable &&
                       "Unavailable"}
-                    {hostedStatus === "ready" && count !== null && (
+                    {text.length > 0 && hostedStatus === "ready" && displayCount !== null && (
                       <>
-                        <strong>{count}</strong>
-                        {count === 1 ? " token" : " tokens"}
+                        <strong>{displayCount}</strong>
+                        {contentCount !== null || profile.supportsBoundaries
+                          ? displayCount === 1 ? " token" : " tokens"
+                          : displayCount === 1 ? " input token" : " input tokens"}
                       </>
                     )}
                   </p>
-                  {renderRemoveButton(modelId, modelName)}
                   <button
                     className="result-panel__toggle"
                     type="button"
@@ -939,7 +1054,7 @@ export function TokenComparer({
                       <path d="m7 14 5-5 5 5" />
                     </svg>
                   </button>
-                  {renderDragHandle(modelId, modelName)}
+                  {renderRemoveButton(modelId, modelName)}
                 </div>
               </header>
               <div
@@ -949,32 +1064,68 @@ export function TokenComparer({
               >
                 <div className="result-panel__body-inner">
                   {text.length === 0 && (
-                    <p className="hosted-output-note">Enter text above to request a count.</p>
+                    <EmptyTokenOutput label={profile.label} />
                   )}
                   {text.length > 0 && hostedStatus === "loading" && (
                     <p className="hosted-output-note">Contacting provider…</p>
                   )}
-                  {hostedStatus === "error" && (
+                  {text.length > 0 && hostedStatus === "error" && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {hostedStatus === "ready" && isUnavailable && (
+                  {text.length > 0 && hostedStatus === "ready" && isUnavailable && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {hostedStatus === "ready" &&
+                  {text.length > 0 && hostedStatus === "ready" &&
                     result?.status === "ok" &&
-                    result.tokens === null && (
-                      <p className="hosted-output-note">
-                        Token breakdown unavailable from this provider; the total above
-                        is provider reported.
-                      </p>
+                    result.tokens === null &&
+                    displayCount !== null && (
+                      <>
+                        <TokenCountPlaceholder
+                          count={displayCount}
+                          label={modelName}
+                          approximate={isEstimated}
+                        />
+                        {isEstimated ? (
+                          <p className="hosted-output-note">
+                            Empty boxes represent an approximate raw-content count from
+                            differential measurements
+                            {result.contentTokenCountMin !== null &&
+                            result.contentTokenCountMax !== null
+                              ? ` (observed range ${result.contentTokenCountMin}–${result.contentTokenCountMax})`
+                              : ""}. {profile.provider === "anthropic"
+                                ? "Anthropic"
+                                : "Google"} reports {result.tokenCount} tokens for the
+                            complete structured input. Actual token IDs and
+                            boundaries are unavailable.
+                            {profile.provider === "google" && (
+                              <> Google&apos;s current local package does not support Gemini 4
+                              Argon; an exact Gemini 3 Pro Preview local tokenizer is available
+                              from the Add menu.</>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="hosted-output-note">
+                            Full token breakdown is not supported for this provider/model.
+                            Empty boxes represent the provider-reported structured-input total,
+                            which can include provider-added formatting or system tokens.
+                            {profile.provider === "google" && (
+                              <> Google&apos;s current local package does not support Gemini 4
+                              Argon; an exact Gemini 3 Pro Preview local tokenizer is available
+                              from the Add menu.</>
+                            )}
+                          </p>
+                        )}
+                      </>
                     )}
-                  {hostedStatus === "ready" &&
+                  {text.length > 0 && hostedStatus === "ready" &&
                     result?.status === "ok" &&
                     result.tokens !== null && (
                       <TokenCard result={{ profile, tokens: result.tokens }} />
                     )}
                   <p className="result-panel__revision">
-                    Hosted {profile.supportsBoundaries ? "breakdown" : "count"} · {" "}
+                    {usesEstimate
+                      ? "Estimated raw content · hosted differential count"
+                      : `Hosted ${profile.supportsBoundaries ? "breakdown" : "count"}`} · {" "}
                     <a href={profile.sourceUrl} target="_blank" rel="noreferrer">
                       provider API
                     </a>

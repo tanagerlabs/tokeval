@@ -42,12 +42,13 @@ function getWorker(): Worker {
 
 export function tokenizeOpenModelsInWorker(
   text: string,
+  profileIds: readonly string[],
 ): Promise<TokenizationResult[]> {
   const id = ++nextRequestId;
 
   return new Promise((resolve, reject) => {
     pendingRequests.set(id, { resolve, reject });
-    getWorker().postMessage({ id, text });
+    getWorker().postMessage({ id, text, profileIds: [...profileIds] });
   });
 }
 

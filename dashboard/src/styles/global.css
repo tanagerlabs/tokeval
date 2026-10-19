@@ -330,7 +330,6 @@ main {
 
 .result-panel__toggle,
 .result-panel__remove,
-.result-panel__drag-handle,
 .provider-error button {
   padding: 0;
   color: var(--link);
@@ -372,6 +371,24 @@ main {
 .result-panel {
   position: relative;
   border-radius: 0.45rem;
+  cursor: grab;
+  outline: none;
+}
+
+.result-panel:focus-visible {
+  box-shadow: 0 0 0 2px var(--link);
+}
+
+.result-panel__name h2,
+.result-panel__name code,
+.result-panel__actions > p,
+.estimate-badge,
+.exact-badge,
+.token,
+.empty-output,
+.hosted-output-note,
+.result-panel__revision {
+  cursor: text;
 }
 
 .result-panel + .result-panel {
@@ -465,9 +482,9 @@ main {
 
 .result-panel__toggle {
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  min-width: 2.25rem;
+  width: 3rem;
+  height: 3rem;
+  min-width: 3rem;
   padding: 0;
   place-items: center;
   flex: none;
@@ -481,9 +498,9 @@ main {
 
 .result-panel__remove {
   display: grid;
-  width: 2.1rem;
-  height: 2.1rem;
-  min-width: 2.1rem;
+  width: 3rem;
+  height: 3rem;
+  min-width: 3rem;
   place-items: center;
   flex: none;
   color: var(--danger);
@@ -501,43 +518,12 @@ main {
 }
 
 .result-panel__remove svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.7rem;
+  height: 1.7rem;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
-  stroke-width: 1.8;
-}
-
-.result-panel__drag-handle {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  min-width: 2.25rem;
-  padding: 0;
-  place-items: center;
-  flex: none;
-  color: var(--muted);
-  border: 1px solid transparent;
-  border-radius: 0.55rem;
-  cursor: grab;
-  touch-action: none;
-  transition:
-    color 160ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease;
-}
-
-.result-panel__drag-handle:hover {
-  color: var(--ink);
-  background: var(--surface);
-  border-color: var(--soft-line);
-}
-
-.result-panel__drag-handle svg {
-  width: 1.15rem;
-  height: 1.15rem;
-  fill: currentColor;
+  stroke-width: 2;
 }
 
 .result-panel--dragging {
@@ -557,8 +543,8 @@ main {
     0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.result-panel--dragging .result-panel__drag-handle {
-  color: var(--ink);
+.result-panel--dragging,
+.result-panel--dragging * {
   cursor: grabbing;
 }
 
@@ -569,8 +555,8 @@ main {
 }
 
 .result-panel__toggle-icon {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.8rem;
+  height: 1.8rem;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -612,6 +598,98 @@ main {
 
 .result-panel__actions > p {
   margin-right: 0.4rem;
+}
+
+.estimate-badge {
+  position: relative;
+  display: inline-flex;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.38rem;
+  margin-right: 0.18rem;
+  align-items: center;
+  color: #76520c;
+  background: #fff1bd;
+  border: 1px solid #dfbd59;
+  border-radius: 999px;
+  cursor: help;
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.exact-badge {
+  display: inline-flex;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.38rem;
+  margin-right: 0.18rem;
+  align-items: center;
+  color: #28653e;
+  background: #dcf5e4;
+  border: 1px solid #8bc49d;
+  border-radius: 999px;
+  cursor: default;
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .exact-badge {
+  color: #a9e9bb;
+  background: #1e4129;
+  border-color: #477e57;
+}
+
+:root[data-theme="dark"] .estimate-badge {
+  color: #ffe59b;
+  background: #493a16;
+  border-color: #806627;
+}
+
+.estimate-badge:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.estimate-badge__tooltip {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(18rem, calc(100vw - 2rem));
+  padding: 0.6rem 0.7rem;
+  visibility: hidden;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  box-shadow: 0 8px 24px rgba(32, 33, 35, 0.14);
+  font-size: 0.68rem;
+  font-weight: 450;
+  letter-spacing: normal;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  transform: translateY(-0.2rem);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    visibility 140ms ease;
+}
+
+.estimate-badge:hover .estimate-badge__tooltip,
+.estimate-badge:focus-visible .estimate-badge__tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .result-panel__header strong {
@@ -720,6 +798,11 @@ main {
   background: var(--token-blue);
   border-radius: 0.2rem;
   outline: none;
+}
+
+.token--placeholder {
+  width: 1.85rem;
+  min-width: 1.85rem;
 }
 
 .token:nth-child(4n + 2) {

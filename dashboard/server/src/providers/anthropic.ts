@@ -8,8 +8,19 @@ import {
   requireTokenCount,
   timeoutSignal,
 } from "./shared";
+import {
+  CONTENT_ESTIMATE_WRAPPERS,
+  summarizeContentEstimate,
+} from "./content-estimate";
 
 const ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens";
+
+interface CountResult {
+  count: number;
+  requestId: string | null;
+}
+
+const baselineCounts = new Map<string, Promise<number>>();
 
 async function requireAnthropicOk(response: Response): Promise<void> {
   if (response.ok) return;
@@ -43,26 +54,83 @@ export async function countAnthropic(
   if (!env.ANTHROPIC_API_KEY) {
     throw new ProviderError("MISSING_PROVIDER_CREDENTIALS", false);
   }
+  const apiKey = env.ANTHROPIC_API_KEY;
 
-  const headers = new Headers({
-    "content-type": "application/json",
-    "x-api-key": env.ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01",
-  });
-  const workspaceId = env.ANTHROPIC_WORKSPACE_ID?.trim();
-  if (workspaceId) headers.set("anthropic-workspace-id", workspaceId);
+  async function countMessage(content: string): Promise<CountResult> {
+    const headers = new Headers({
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    });
+    const workspaceId = env.ANTHROPIC_WORKSPACE_ID?.trim();
+    if (workspaceId) headers.set("anthropic-workspace-id", workspaceId);
 
-  const response = await fetchProviderResponse(env, "anthropic", model.upstreamModel, ENDPOINT, text, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: model.upstreamModel,
-      messages: [{ role: "user", content: text }],
+    const response = await fetchProviderResponse(
+      env,
+      "anthropic",
+      model.upstreamModel,
+      ENDPOINT,
+      content,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: model.upstreamModel,
+          messages: [{ role: "user", content }],
+        }),
+        signal: timeoutSignal(env),
+      },
+    );
+    await requireAnthropicOk(response);
+    const body = await parseJsonObject(response);
+    return {
+      count: requireTokenCount(body.input_tokens),
+      requestId: providerRequestId(response),
+    };
+  }
+
+  const baselinePrefix = `${model.upstreamModel}\u0000${env.ANTHROPIC_WORKSPACE_ID?.trim() ?? ""}`;
+  const estimateOutcomes = Promise.allSettled(
+    CONTENT_ESTIMATE_WRAPPERS.map(async ({ prefix, suffix }, index) => {
+      const baselineKey = `${baselinePrefix}\u0000${index}`;
+      let baseline = baselineCounts.get(baselineKey);
+      if (!baseline) {
+        const pending = countMessage(`${prefix}${suffix}`).then(
+          (result) => result.count,
+        );
+        baselineCounts.set(baselineKey, pending);
+        void pending.catch(() => {
+          if (baselineCounts.get(baselineKey) === pending) {
+            baselineCounts.delete(baselineKey);
+          }
+        });
+        baseline = pending;
+      }
+
+      const [baselineCount, wrapped] = await Promise.all([
+        baseline,
+        countMessage(`${prefix}${text}${suffix}`),
+      ]);
+      return Math.max(1, wrapped.count - baselineCount);
     }),
-    signal: timeoutSignal(env),
-  });
-  await requireAnthropicOk(response);
-  const body = await parseJsonObject(response);
+  );
+
+  const [messageCount, outcomes] = await Promise.all([
+    countMessage(text),
+    estimateOutcomes,
+  ]);
+  const estimate = summarizeContentEstimate(outcomes);
+  if (
+    estimate.successfulWrappers !== CONTENT_ESTIMATE_WRAPPERS.length &&
+    env.LOG_PROVIDER_IO?.trim().toLowerCase() === "true"
+  ) {
+    console.warn(JSON.stringify({
+      event: "anthropic_content_estimate_partial",
+      model: model.upstreamModel,
+      successful_wrappers: estimate.successfulWrappers,
+      total_wrappers: CONTENT_ESTIMATE_WRAPPERS.length,
+    }));
+  }
 
   return {
     provider: "anthropic",
@@ -70,11 +138,22 @@ export async function countAnthropic(
     resolved_model: model.upstreamModel,
     status: "ok",
     count_source: "hosted_message_count",
-    token_count: requireTokenCount(body.input_tokens),
+    token_count: messageCount.count,
+    content_token_count: estimate.value,
+    content_count_kind: estimate.value === null ? null : "estimated",
+    content_token_count_min: estimate.minimum,
+    content_token_count_max: estimate.maximum,
     supports_boundaries: false,
     token_ids: null,
     tokens: null,
     cache: "disabled",
-    provider_request_id: providerRequestId(response),
+    provider_request_id: messageCount.requestId,
   };
 }
+
+export const anthropicInternals = {
+  estimateWrappers: CONTENT_ESTIMATE_WRAPPERS,
+  clearBaselineCache(): void {
+    baselineCounts.clear();
+  },
+};

@@ -2,6 +2,7 @@ import type { TokenizerProfile } from "./tokenizer";
 
 export type OpenModelTokenizerId =
   | "deepseek-v3.2"
+  | "google-gemini-3-pro-preview"
   | "meta-llama-4"
   | "mistral-7b-v0.3"
   | "cohere-command-a-plus"
@@ -15,6 +16,7 @@ export interface OpenModelTokenizerProfile
   repository: string;
   revision: string;
   artifactUrl?: string;
+  artifactSha256?: string;
   decoder:
     | "byte_level"
     | "sentencepiece"
@@ -35,6 +37,23 @@ export const OPEN_MODEL_PROFILES: OpenModelTokenizerProfile[] = [
     sourceUrl:
       "https://huggingface.co/deepseek-ai/DeepSeek-V3.2/tree/a7e62ac04ecb2c0a54d736dc46601c5606cf10a6",
     decoder: "byte_level",
+  },
+  {
+    id: "google-gemini-3-pro-preview",
+    provider: "google",
+    encoding: "Google LocalTokenizer · gemma3",
+    label: "Google Gemini local",
+    modelExamples: "Gemini 3 Pro Preview (local)",
+    accent: "blue",
+    repository: "google/gemma_pytorch",
+    revision: "014acb7ac4563a5f77c76d7ff98f31b568c16508",
+    artifactUrl:
+      "https://raw.githubusercontent.com/google/gemma_pytorch/014acb7ac4563a5f77c76d7ff98f31b568c16508/tokenizer/gemma3_cleaned_262144_v2.spiece.model",
+    artifactSha256:
+      "1299c11d7cf632ef3b4e11937501358ada021bbdf7c47638d13c0ee982f2e79c",
+    sourceUrl:
+      "https://github.com/googleapis/js-genai/blob/v2.30.0/src/cross/tokenizer/_loader.ts",
+    decoder: "native_sentencepiece",
   },
   {
     id: "meta-llama-4",

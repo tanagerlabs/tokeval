@@ -111,8 +111,22 @@ describe("Worker request handling", () => {
 
     expect(response.status).toBe(200);
     expect(body.results).toMatchObject([
-      { provider: "anthropic", status: "ok", token_count: 8, tokens: null },
-      { provider: "google", status: "ok", token_count: 6, tokens: null },
+      {
+        provider: "anthropic",
+        status: "ok",
+        token_count: 8,
+        content_token_count: 1,
+        content_count_kind: "estimated",
+        tokens: null,
+      },
+      {
+        provider: "google",
+        status: "ok",
+        token_count: 6,
+        content_token_count: 1,
+        content_count_kind: "estimated",
+        tokens: null,
+      },
       {
         provider: "xai",
         status: "unavailable",

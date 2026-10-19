@@ -27,7 +27,12 @@ For more info, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 The Explorer MVP lives in `dashboard/` and uses Astro with a focused React
 island for interactive tokenization. The default comparison is statically
 rendered; encoding data is loaded locally in the browser only when the input
-changes.
+changes. The add-model menu includes Google's experimental local tokenizer
+mapping for Gemini 3 Pro Preview. Gemini 4 Argon remains a separately labeled
+hosted estimate because Google's current local package does not map that model.
+Anthropic and unsupported hosted Google models show approximate raw-content
+counts alongside their authoritative structured-input counts; neither claims
+unavailable token boundaries.
 
 ```bash
 cd dashboard
