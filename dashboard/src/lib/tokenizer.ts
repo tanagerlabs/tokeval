@@ -6,6 +6,8 @@ export type EncodingName = (typeof ENCODING_NAMES)[number];
 
 export type TokenizerProvider =
   | "openai"
+  | "anthropic"
+  | "google"
   | "deepseek"
   | "meta"
   | "mistral"

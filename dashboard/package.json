@@ -8,6 +8,10 @@
     "build": "astro check && astro build",
     "check": "astro check",
     "preview": "astro preview",
+    "server:build": "npm --prefix server run build",
+    "server:check": "npm --prefix server run check",
+    "server:dev": "npm --prefix server run dev",
+    "server:test": "npm --prefix server test",
     "test": "vitest run"
   },
   "dependencies": {

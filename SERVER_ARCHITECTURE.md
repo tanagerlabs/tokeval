@@ -197,7 +197,7 @@ tokeval/
 │       └── lib/
 │           ├── hosted-client.ts       # Browser API client only
 │           └── hosted-result-cache.ts # Memory/IndexedDB cache
-├── server/
+├── dashboard/server/
 │   ├── src/
 │   │   ├── index.ts                   # Worker fetch handler/router
 │   │   ├── auth.ts

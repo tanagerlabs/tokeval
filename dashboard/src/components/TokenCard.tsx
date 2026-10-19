@@ -1,7 +1,7 @@
 import type { TokenPiece, TokenizationResult } from "../lib/tokenizer";
 
 interface TokenCardProps {
-  result: TokenizationResult;
+  result: Pick<TokenizationResult, "profile" | "tokens">;
 }
 
 function visibleText(text: string): string {

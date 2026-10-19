@@ -12,4 +12,13 @@ models/
 dashboard/.astro/
 dashboard/dist/
 dashboard/node_modules/
+dashboard/server/.dev.vars
+dashboard/server/.wrangler/
+dashboard/server/coverage/
+dashboard/server/dist/
+dashboard/server/node_modules/
+dashboard/server/infra/terraform/.terraform/
+dashboard/server/infra/terraform/*.tfstate
+dashboard/server/infra/terraform/*.tfstate.*
+dashboard/server/infra/terraform/*.tfvars
 /FORECASTING.md

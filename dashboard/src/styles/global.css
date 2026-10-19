@@ -272,6 +272,39 @@ main {
   font-size: 0.74rem;
 }
 
+.hosted-control {
+  display: flex;
+  margin: 0.8rem 0 0;
+  padding: 0 0.1rem;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.hosted-control p {
+  margin: 0;
+}
+
+.hosted-control span {
+  color: var(--muted);
+}
+
+.hosted-control button {
+  padding: 0;
+  color: var(--link);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.hosted-control button:hover {
+  text-decoration: underline;
+}
+
 .result-panel__toggle,
 .provider-error button {
   padding: 0;
@@ -340,6 +373,16 @@ main {
 
 .provider-logo--openai {
   --provider-logo: url("/logos/openai.svg");
+}
+
+.provider-logo--anthropic {
+  --provider-logo: url("/logos/anthropic.svg");
+  color: #d97757;
+}
+
+.provider-logo--google {
+  --provider-logo: url("/logos/google.svg");
+  color: #4285f4;
 }
 
 .provider-logo--deepseek {
@@ -491,6 +534,15 @@ main {
   line-height: 1.5;
 }
 
+.hosted-output-note {
+  min-height: 3.25rem;
+  margin: 0;
+  padding: 0.75rem 0.1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
 .token-output {
   position: relative;
   min-height: 4.5rem;
@@ -630,6 +682,12 @@ a:focus-visible {
 
   .comparison-header__actions {
     width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hosted-control {
+    gap: 0.35rem;
     align-items: flex-start;
     flex-direction: column;
   }

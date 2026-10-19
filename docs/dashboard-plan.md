@@ -68,7 +68,7 @@ Repo layout:
 ```
 tokeval/
 ├── dashboard/          # unchanged
-├── server/             # edge endpoint, provider adapters, caching, rate limiting
+├── dashboard/server/   # edge endpoint, provider adapters, caching, rate limiting
 │   ├── .env.example    # names of required secrets, no values
 │   └── fixtures/       # recorded provider responses
 └── infra/              # parameterized CFN; zero account specifics

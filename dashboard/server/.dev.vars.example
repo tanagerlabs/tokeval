@@ -1,0 +1,5 @@
+ANTHROPIC_API_KEY=replace-with-development-key
+GEMINI_API_KEY=replace-with-development-key
+# XAI_API_KEY is optional while ENABLE_XAI remains false.
+# XAI_API_KEY=replace-with-development-key
+CACHE_HMAC_SECRET=replace-with-at-least-32-random-bytes
