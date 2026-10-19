@@ -774,9 +774,15 @@ main {
   max-height: 7.43rem;
   padding: 0.2rem 0;
   overflow-y: auto;
+  overflow-anchor: none;
   overscroll-behavior: contain;
   scrollbar-color: var(--line) transparent;
   scrollbar-width: thin;
+}
+
+.token-output--initial-page {
+  max-height: none;
+  overflow-y: hidden;
 }
 
 .token-stream {
@@ -787,6 +793,47 @@ main {
   align-items: flex-start;
   flex-wrap: wrap;
   list-style: none;
+}
+
+.token-stream__more-item {
+  display: flex;
+  min-height: 2.25rem;
+  margin-left: auto;
+  align-items: center;
+  list-style: none;
+}
+
+.token-stream__more,
+.token-stream__more-sizer {
+  padding: 0 1rem 0 0.1rem;
+  color: var(--link);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.token-stream__more {
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.token-stream__more-sizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.token-stream__more:hover {
+  text-decoration: underline;
+}
+
+.token-stream__more:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
 }
 
 .token {

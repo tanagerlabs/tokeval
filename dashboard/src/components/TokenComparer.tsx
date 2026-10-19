@@ -40,9 +40,20 @@ interface TokenComparerProps {
 const HOSTED_DEBOUNCE_MS = 650;
 const XAI_HOSTED_DEBOUNCE_MS = 1300;
 const CORE_MODEL_IDS = ["openai-o200k", "openai-cl100k"] as const;
+const JS_TIKTOKEN_REVISION_PATTERN = /^js-tiktoken@(\d+\.\d+\.\d+)$/;
 
 function resultKey(result: TokenizationResult): string {
   return result.profile.id || result.profile.encoding;
+}
+
+function tokenizerRevisionUrl(result: TokenizationResult): string | undefined {
+  const jsTiktokenVersion = result.tokenizerRevision.match(
+    JS_TIKTOKEN_REVISION_PATTERN,
+  )?.[1];
+  if (jsTiktokenVersion) {
+    return `https://www.npmjs.com/package/js-tiktoken/v/${jsTiktokenVersion}`;
+  }
+  return result.profile.sourceUrl;
 }
 
 function hostedErrorMessage(code: string | null): string {
@@ -861,6 +872,7 @@ export function TokenComparer({
             const displayCount = text.length === 0
               ? 0
               : localResult.tokens.length;
+            const revisionUrl = tokenizerRevisionUrl(localResult);
             const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
 
             return (
@@ -920,9 +932,9 @@ export function TokenComparer({
                       <TokenCard result={localResult} />
                     )}
                     <p className="result-panel__revision">
-                      Local · {localResult.profile.sourceUrl ? (
+                      Local · {revisionUrl ? (
                         <a
-                          href={localResult.profile.sourceUrl}
+                          href={revisionUrl}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1173,9 +1185,6 @@ export function TokenComparer({
                       <TokenCard result={{ profile, tokens: result.tokens }} />
                     )}
                   <p className="result-panel__revision">
-                    {usesEstimate
-                      ? "Estimated raw content · hosted differential count"
-                      : `Hosted ${profile.supportsBoundaries ? "breakdown" : "count"}`} · {" "}
                     <a href={profile.sourceUrl} target="_blank" rel="noreferrer">
                       provider API
                     </a>

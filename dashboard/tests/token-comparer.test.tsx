@@ -41,6 +41,13 @@ describe("TokenComparer first render", () => {
     expect(html).toContain(
       "an exact Gemini 3 Pro Preview local tokenizer is available",
     );
+    expect(html.match(/>provider API<\/a>/g)).toHaveLength(3);
+    expect(html).not.toContain("Estimated raw content");
+    expect(html).not.toContain("hosted differential count");
+    expect(html).not.toContain("Hosted breakdown");
+    expect(html).toContain(
+      'href="https://www.npmjs.com/package/js-tiktoken/v/1.0.21"',
+    );
     expect(html).not.toContain("result-panel__drag-handle");
     expect(html).not.toContain("Enable hosted counts");
     expect(html).not.toContain("Disable hosted counts");

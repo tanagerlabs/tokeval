@@ -1,4 +1,5 @@
 import type { TokenPiece, TokenizationResult } from "../lib/tokenizer";
+import { ProgressiveTokenOutput } from "./ProgressiveTokenOutput";
 
 interface TokenCardProps {
   result: Pick<TokenizationResult, "profile" | "tokens">;
@@ -41,32 +42,30 @@ export function TokenCard({ result }: TokenCardProps) {
   }
 
   return (
-    <section className="token-output" aria-label={`${profile.label} result`}>
-      <ol
-        className="token-stream"
-        aria-label={`${profile.label} token breakdown`}
-      >
-        {tokens.map((token) => {
-          const isByteFragment = token.text === null;
-          const label = token.text === null
-            ? `‹${byteHex(token)}›`
-            : visibleText(token.text);
+    <ProgressiveTokenOutput
+      ariaLabel={`${profile.label} result`}
+      measurementKey={tokens}
+      streamAriaLabel={`${profile.label} token breakdown`}
+    >
+      {tokens.map((token) => {
+        const isByteFragment = token.text === null;
+        const label = token.text === null
+          ? `‹${byteHex(token)}›`
+          : visibleText(token.text);
 
-          return (
-            <li
-              className={isByteFragment ? "token token--bytes" : "token"}
-              key={`${token.index}-${token.id}`}
-              tabIndex={0}
-              title={`Token ${token.id} · bytes ${token.byteStart}–${token.byteEnd} · ${byteHex(token)}`}
-            >
-              <span className="token__text">{label}</span>
-              <span className="token__id">{token.id}</span>
-            </li>
-          );
-        })}
-      </ol>
-
-    </section>
+        return (
+          <li
+            className={isByteFragment ? "token token--bytes" : "token"}
+            key={`${token.index}-${token.id}`}
+            tabIndex={0}
+            title={`Token ${token.id} · bytes ${token.byteStart}–${token.byteEnd} · ${byteHex(token)}`}
+          >
+            <span className="token__text">{label}</span>
+            <span className="token__id">{token.id}</span>
+          </li>
+        );
+      })}
+    </ProgressiveTokenOutput>
   );
 }
 

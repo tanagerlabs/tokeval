@@ -34,7 +34,11 @@ const currentYear = new Date().getFullYear();
           model API. Anthropic, Google, and xAI rows update automatically and
           send the entered text to those providers through the TokEval server.
           Plain-text local results come from pinned public tokenizer artifacts
-          using <code>js-tiktoken@1.0.21</code>,
+          using <a
+            href="https://www.npmjs.com/package/js-tiktoken/v/1.0.21"
+            target="_blank"
+            rel="noreferrer"
+          ><code>js-tiktoken@1.0.21</code></a>,
           <code>@huggingface/tokenizers@0.2.0</code>, and
           <code>@sctg/sentencepiece-js@1.3.3</code>. These are local tokenizer
           outputs, not hosted inference or API token counts.
