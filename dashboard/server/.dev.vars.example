@@ -1,8 +1,0 @@
-ANTHROPIC_API_KEY=replace-with-development-key
-# Required for Anthropic keys that can access more than one workspace.
-# ANTHROPIC_WORKSPACE_ID=wrkspc_replace-with-workspace-id
-GEMINI_API_KEY=replace-with-development-key
-XAI_API_KEY=replace-with-development-key
-ENABLE_XAI=true
-LOG_PROVIDER_IO=true
-CACHE_HMAC_SECRET=replace-with-at-least-32-random-bytes

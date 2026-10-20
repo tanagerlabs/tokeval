@@ -1,4 +1,0 @@
-cloudflare_account_id     = "replace-with-account-id"
-worker_name               = "tokeval-tokenizer-api"
-enable_workers_dev        = true
-observability_sample_rate = 0.1

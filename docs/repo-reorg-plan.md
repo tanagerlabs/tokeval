@@ -190,12 +190,12 @@ Each step is reversible until Step 5 is pushed. Transfer back: `gh api -X POST r
 
 | Step | Status | Date | Notes |
 |---|---|---|---|
-| Preconditions (§4) | planned | | |
-| 1 Transfer | planned | | |
-| 2 Org defaults | planned | | |
-| 3 Extract dashboard | planned | | |
-| 4 Create research repo | planned | | |
-| 5 Reduce library repo | planned | | |
+| Preconditions (§4) | completed | 2026-10-20 | `gh` authenticated as `wadeptr`; organization role `admin`; `git-filter-repo` installed; `main` clean; target organization empty. |
+| 1 Transfer | completed | 2026-10-20 | Transferred to `tanagerlabs/tokeval`; origin updated; old URL redirects with HTTP 301. |
+| 2 Org defaults | completed | 2026-10-20 | Default repository permission is `read`; members may create public repositories. |
+| 3 Extract dashboard | completed | 2026-10-20 | History-preserving extraction published at `tanagerlabs/tokeval-dashboard`; tests and builds passed. |
+| 4 Create research repo | completed | 2026-10-20 | Research context, environment snapshots, configs/writeups guidance published on `main`. |
+| 5 Reduce library repo | completed | 2026-10-20 | Dashboard and research trees removed; root guidance scoped to the unstarted Python library. |
 | 6 Org profile | planned | | |
 | 7 Workstation cleanup | planned | | |
 | §6 verification | planned | | |

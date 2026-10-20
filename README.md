@@ -2,45 +2,49 @@
 
 *Investigating the hidden cost of language in AI.*
 
-TokEval is an open-source research and engineering project for measuring, explaining, visualizing, and reducing multilingual LLM tokenization inefficiency. Korean is the first optimization case study, with English as an initial baseline and support for more languages designed to remain extensible.
+TokEval is an open-source Python library, currently in its initial setup phase,
+for reproducibly measuring multilingual LLM tokenization efficiency and
+connecting it—without conflating it—to model quality, serving behavior,
+energy, and monetary cost. Korean is the first optimization case, English is
+the initial baseline, and additional languages are designed to be
+configuration-driven.
 
-## What we're building
+## Intended library layout
 
-- **Explorer:** byte-safe, side-by-side visualization of real tokenizer output.
-- **Bench:** reproducible multilingual tokenization and runtime evaluation.
-- **Train:** controlled tokenizer and model-adaptation experiments.
-- **Serve:** GPU benchmarks connecting tokenization to latency, memory, energy, quality, and cost.
+The Python package has not yet been implemented. New work should use:
+
+```text
+src/tokeval/       reusable library code and tokenizer adapters
+tests/             focused unit and integration tests
+configs/languages/ versioned language settings
+pyproject.toml     package metadata and Python tooling
+```
+
+Tokenizer integrations will share one adapter contract, retain raw bytes and
+byte spans, pin model/tokenizer revisions, and distinguish local tokenization,
+hosted count-only APIs, estimates, and real inference. Tokens may split UTF-8
+code points, so independent token decoding must never be assumed.
 
 ## Research principles
 
 - Measure cost per successful task—not token count alone.
-- Keep token efficiency, model quality, serving performance, and price distinct.
+- Keep token efficiency, model quality, serving performance, energy, and price
+  distinct.
 - Preserve raw bytes because token boundaries may split UTF-8 code points.
-- Publish controlled comparisons with versioned data, models, software, hardware, and seeds.
-- Treat every claimed improvement as a result to demonstrate, not an assumption.
+- Publish controlled comparisons with versioned data, models, software,
+  hardware, configs, and seeds.
+- Treat every claimed improvement as a result to demonstrate, not an
+  assumption.
 
+## Repository family
 
-For more info, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). Changes are
-welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains the model catalog,
-tokenizer integrations, hosted providers, and required verification.
+- [`tanagerlabs/tokeval`](https://github.com/tanagerlabs/tokeval) — this
+  reusable Python evaluation library.
+- [`tanagerlabs/tokeval-dashboard`](https://github.com/tanagerlabs/tokeval-dashboard)
+  — the [tokeval.dev](https://tokeval.dev) Explorer and hosted-count Worker.
+- [`tanagerlabs/tokeval-research`](https://github.com/tanagerlabs/tokeval-research)
+  — research scope, experiment configs, results, and writeups. Its
+  [`PROJECT_CONTEXT.md`](https://github.com/tanagerlabs/tokeval-research/blob/main/PROJECT_CONTEXT.md)
+  is the program source of truth.
 
-## Dashboard development
-
-The Explorer MVP lives in `dashboard/` and uses Astro with a focused React
-island for interactive tokenization. The default comparison is statically
-rendered; encoding data is loaded locally in the browser only when the input
-changes. The add-model menu includes Google's experimental local tokenizer
-mapping for Gemini 3 Pro Preview. Gemini 4 Argon remains a separately labeled
-hosted estimate because Google's current local package does not map that model.
-Anthropic and unsupported hosted Google models show approximate raw-content
-counts alongside their authoritative structured-input counts; neither claims
-unavailable token boundaries.
-
-```bash
-cd dashboard
-npm install
-npm run dev
-```
-
-Run `npm test` for byte-safety checks and `npm run build` for the complete
-type-check and production build.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before starting library work.
