@@ -7,12 +7,12 @@
 - This repository contains only the reusable Python evaluation library. The
   dashboard and research artifacts live in the sibling repositories linked
   from the README.
-- TokEval is in its initial library setup phase. Do not describe planned work
+- TokEvals is in its initial library setup phase. Do not describe planned work
   as implemented or experimental targets as measured results.
 
 ## Standard patterns
 
-- Keep reusable code under `src/tokeval/`, tests under `tests/`, language
+- Keep reusable code under `src/tokevals/`, tests under `tests/`, language
   settings under `configs/languages/`, and package/tool configuration in
   `pyproject.toml`.
 - Keep tokenizer integrations behind a shared adapter interface. Report the
@@ -31,7 +31,7 @@
   as separate measurements.
 - Use controlled comparisons, explicit metric definitions, fixed seeds, and
   versioned configs. Record dataset/model revisions or hashes and relevant
-  hardware/software versions in `tokeval-research`, not this package.
+  hardware/software versions in `tokevals-research`, not this package.
 - Test Unicode round trips, normalization, unusual spacing, emoji, mixed
   scripts, and byte-boundary splits.
 - Vocabulary work is append-only expansion: preserve existing IDs and special
@@ -44,6 +44,6 @@
   identifiers, raw machine diagnostics, datasets, model weights, or
   checkpoints.
 - Keep experiments, results, and writeups in
-  `tanagerlabs/tokeval-research`; keep dashboard code in
-  `tanagerlabs/tokeval-dashboard`.
+  `tokevals/tokevals-research`; keep dashboard code in
+  `tokevals/tokevals-dashboard`.
 - Preserve unrelated user changes and avoid destructive Git operations.

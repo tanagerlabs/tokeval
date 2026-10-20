@@ -144,9 +144,9 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 
 | Step | Status | Date | Notes |
 |---|---|---|---|
-| §3 preconditions | planned | | |
-| §4 transfer + local rename | planned | | |
-| §5.1 library | planned | | |
+| §3 preconditions | attempted | 2026-10-20 | GitHub auth, both org roles, clean/pushed checkouts, and empty target org verified. Worker deployment history could not be queried without a non-interactive Cloudflare API token. |
+| §4 transfer + local rename | completed | 2026-10-20 | Three repositories transferred/renamed; remotes and local directories updated; old paths removed; Claude project memory copied. |
+| §5.1 library | completed | 2026-10-20 | Library branding, repository links, package/import naming, and prescribed `src/tokevals/` layout updated. |
 | §5.2 dashboard | planned | | Worker deploy sequence depends on §3 item 4 |
 | §5.3 research | planned | | |
 | §5.4 org profiles | planned | | |

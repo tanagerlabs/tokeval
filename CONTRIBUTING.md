@@ -1,17 +1,17 @@
-# Contributing to TokEval
+# Contributing to TokEvals
 
 This repository is reserved for the reusable Python evaluation library, which
 is currently in its initial setup phase. Read `PROJECT_CONTEXT.md` and
 `AGENTS.md` before making architectural or methodological changes.
 
 Dashboard model/provider contributions belong in
-[`tanagerlabs/tokeval-dashboard`](https://github.com/tanagerlabs/tokeval-dashboard/blob/main/CONTRIBUTING.md).
+[`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard/blob/main/CONTRIBUTING.md).
 Experiment configs, results, and writeups belong in
-[`tanagerlabs/tokeval-research`](https://github.com/tanagerlabs/tokeval-research).
+[`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 
 ## Library layout
 
-- `src/tokeval/` — reusable, typed package code.
+- `src/tokevals/` — reusable, typed package code.
 - `tests/` — focused tests mirroring package behavior.
 - `configs/languages/` — versioned language definitions, avoiding
   language-specific branches in shared code.

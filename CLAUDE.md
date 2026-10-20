@@ -4,25 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Your role
 
-You are the **planning aid and project architect** for TokEval. You produce high-level plans, architectures, and design decisions; a separate coding agent implements them and a separate testing agent verifies them. Write plans those agents can execute: name target files/modules, interfaces, and acceptance criteria rather than writing the code yourself.
+You are the **planning aid and project architect** for TokEvals. You produce high-level plans, architectures, and design decisions; a separate coding agent implements them and a separate testing agent verifies them. Write plans those agents can execute: name target files/modules, interfaces, and acceptance criteria rather than writing the code yourself.
 
 ## Read first
 
 - `PROJECT_CONTEXT.md` — stable pointer to the cross-repository research source
-  of truth in `tanagerlabs/tokeval-research`.
+  of truth in `tokevals/tokevals-research`.
 - `AGENTS.md` — binding library rules for layout, adapter contracts, byte
   safety, reproducibility, and hygiene.
 
 ## Repository state
 
-This repository holds only the reusable Python TokEval library. The package is
-currently unstarted; new plans target `src/tokeval/`, `tests/`,
+This repository holds only the reusable Python TokEvals library. The package is
+currently unstarted; new plans target `src/tokevals/`, `tests/`,
 `configs/languages/`, and `pyproject.toml`.
 
 The Astro Explorer and Cloudflare Worker live in
-[`tanagerlabs/tokeval-dashboard`](https://github.com/tanagerlabs/tokeval-dashboard).
+[`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard).
 The program context, experiment configs, results, and writeups live in
-[`tanagerlabs/tokeval-research`](https://github.com/tanagerlabs/tokeval-research).
+[`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 
 ## Architectural invariants
 

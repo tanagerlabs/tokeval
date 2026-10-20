@@ -1,8 +1,8 @@
-# TokEval
+# TokEvals
 
 *Investigating the hidden cost of language in AI.*
 
-TokEval is an open-source Python library, currently in its initial setup phase,
+TokEvals is an open-source Python library, currently in its initial setup phase,
 for reproducibly measuring multilingual LLM tokenization efficiency and
 connecting it—without conflating it—to model quality, serving behavior,
 energy, and monetary cost. Korean is the first optimization case, English is
@@ -11,14 +11,17 @@ configuration-driven.
 
 ## Intended library layout
 
-The Python package has not yet been implemented. New work should use:
+The `tokevals` Python package has not yet been implemented. New work should
+use:
 
 ```text
-src/tokeval/       reusable library code and tokenizer adapters
+src/tokevals/       reusable library code and tokenizer adapters
 tests/             focused unit and integration tests
 configs/languages/ versioned language settings
 pyproject.toml     package metadata and Python tooling
 ```
+
+The distribution and import name will both be `tokevals`.
 
 Tokenizer integrations will share one adapter contract, retain raw bytes and
 byte spans, pin model/tokenizer revisions, and distinguish local tokenization,
@@ -38,13 +41,13 @@ code points, so independent token decoding must never be assumed.
 
 ## Repository family
 
-- [`tanagerlabs/tokeval`](https://github.com/tanagerlabs/tokeval) — this
+- [`tokevals/tokevals`](https://github.com/tokevals/tokevals) — this
   reusable Python evaluation library.
-- [`tanagerlabs/tokeval-dashboard`](https://github.com/tanagerlabs/tokeval-dashboard)
+- [`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard)
   — the [tokeval.dev](https://tokeval.dev) Explorer and hosted-count Worker.
-- [`tanagerlabs/tokeval-research`](https://github.com/tanagerlabs/tokeval-research)
+- [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research)
   — research scope, experiment configs, results, and writeups. Its
-  [`PROJECT_CONTEXT.md`](https://github.com/tanagerlabs/tokeval-research/blob/main/PROJECT_CONTEXT.md)
+  [`PROJECT_CONTEXT.md`](https://github.com/tokevals/tokevals-research/blob/main/PROJECT_CONTEXT.md)
   is the program source of truth.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before starting library work.
