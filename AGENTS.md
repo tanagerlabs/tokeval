@@ -5,7 +5,7 @@
 - Read `PROJECT_CONTEXT.md`, which points to the research repository's source
   of truth for scope, terminology, phases, and known-versus-planned work.
 - This repository contains only the reusable Python evaluation library. The
-  dashboard and research artifacts live in the sibling repositories linked
+  Explorer and research artifacts live in the sibling repositories linked
   from the README.
 - TokEvals is in its initial library setup phase. Do not describe planned work
   as implemented or experimental targets as measured results.
@@ -44,6 +44,6 @@
   identifiers, raw machine diagnostics, datasets, model weights, or
   checkpoints.
 - Keep experiments, results, and writeups in
-  `tokevals/tokevals-research`; keep dashboard code in
-  `tokevals/tokevals-dashboard`.
+  `tokevals/tokevals-research`; keep Explorer code in
+  `tokevals/tokevals-explorer`.
 - Preserve unrelated user changes and avoid destructive Git operations.

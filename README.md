@@ -43,7 +43,7 @@ code points, so independent token decoding must never be assumed.
 
 - [`tokevals/tokevals`](https://github.com/tokevals/tokevals) — this
   reusable Python evaluation library.
-- [`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard)
+- [`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer)
   — the [tokeval.dev](https://tokeval.dev) Explorer and hosted-count Worker.
 - [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research)
   — research scope, experiment configs, results, and writeups. Its

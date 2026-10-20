@@ -8,4 +8,4 @@ lives at:
 
 This stub remains so existing links resolve. This repository contains only the
 reusable Python evaluation library; the Explorer is maintained in
-[`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard).
+[`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer).

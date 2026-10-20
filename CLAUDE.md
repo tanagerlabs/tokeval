@@ -20,7 +20,7 @@ currently unstarted; new plans target `src/tokevals/`, `tests/`,
 `configs/languages/`, and `pyproject.toml`.
 
 The Astro Explorer and Cloudflare Worker live in
-[`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard).
+[`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer).
 The program context, experiment configs, results, and writeups live in
 [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 

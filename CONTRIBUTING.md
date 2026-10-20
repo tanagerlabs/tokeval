@@ -4,8 +4,8 @@ This repository is reserved for the reusable Python evaluation library, which
 is currently in its initial setup phase. Read `PROJECT_CONTEXT.md` and
 `AGENTS.md` before making architectural or methodological changes.
 
-Dashboard model/provider contributions belong in
-[`tokevals/tokevals-dashboard`](https://github.com/tokevals/tokevals-dashboard/blob/main/CONTRIBUTING.md).
+Explorer model/provider contributions belong in
+[`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer/blob/main/CONTRIBUTING.md).
 Experiment configs, results, and writeups belong in
 [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 

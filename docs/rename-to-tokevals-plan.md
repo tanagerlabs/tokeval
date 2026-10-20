@@ -130,14 +130,14 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 
 ## 8. Verification checklist (testing agent)
 
-- [ ] `gh repo list tokevals` shows `tokevals`, `tokevals-dashboard`, `tokevals-research`, `.github`; `gh repo list tanagerlabs` shows only `.github`.
+- [ ] `gh repo list tokevals` shows `tokevals`, `tokevals-explorer`, `tokevals-research`, `.github`; `gh repo list tanagerlabs` shows only `.github`.
 - [ ] Old URLs `github.com/tanagerlabs/tokeval{,-dashboard,-research}` redirect (301).
 - [ ] In each repository `git grep -n "tanagerlabs/tokeval"` prints nothing, and `git grep -n -w "TokEval"` prints nothing outside §6 identifiers.
-- [ ] Dashboard: `npm ci && npm test && npm run build` passes; `server`: `npm ci && npm test && npm run build` passes; the header link opens `tokevals/tokevals-dashboard`; page `<title>` and JSON-LD say "TokEvals".
+- [ ] Explorer: `npm ci && npm test && npm run build` passes; `server`: `npm ci && npm test && npm run build` passes; the header link opens `tokevals/tokevals-explorer`; page `<title>` and JSON-LD say "TokEvals".
 - [ ] Both lockfiles carry the `@tokevals/...` names.
 - [ ] Worker: `/health` responds at the new name; if the old Worker existed, it is deleted and all secrets are set on the new one (`npx wrangler secret list`).
 - [ ] Org profiles render at `github.com/tokevals` and `github.com/tanagerlabs` with correct links.
-- [ ] Local: `~/projects/tokevals{,-dashboard,-research}` exist, remotes point at `tokevals/`, `/data/projects/tokevals` symlink resolves, old names gone.
+- [ ] Local: `~/projects/tokevals`, `~/projects/tokevals-explorer`, and `~/projects/tokevals-research` exist, remotes point at `tokevals/`, `/data/projects/tokevals` symlink resolves, old names are gone.
 - [ ] After §7: `curl -sI https://tokeval.dev/` is a 301 to `https://tokevals.dev/explorer/`; `https://tokevals.dev/` redirects to `/explorer/`; sitemap and canonical URLs use `https://tokevals.dev/explorer/...`; every asset and internal link resolves under the prefix.
 
 ## 9. Progress
@@ -152,6 +152,7 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 | §5.4 org profiles | completed | 2026-10-20 | Tanager Labs parent profile updated and public `tokevals/.github` profile created with GitHub, site, and Hugging Face links. |
 | §7 domain and site URL | planned | | Blocked on registration of `tokevals.dev` and `tokevals.com`; existing `tokeval.dev` references intentionally remain. |
 | §8 verification | attempted | 2026-10-20 | GitHub redirects/layout, local paths/remotes, code branding, package names, profiles, tests/builds, rendered metadata, and secret scans pass. Worker live health/secrets and post-domain redirects remain pending. |
+| §12 Explorer repository rename | completed | 2026-10-20 | GitHub repository, local checkout, package name, plan filename, source links, and organization profiles renamed; old GitHub URL redirects; 66 Explorer tests and 27 Worker tests plus both builds pass. |
 
 ## 10. Rollback
 
@@ -163,7 +164,7 @@ Transfers reverse with the same API call (`new_owner=tanagerlabs`, old `new_name
 - **Embeddable `TokenComparer` package** published from the Explorer repository once the npm org exists.
 - **PyPI `tokevals`** with the first real library release.
 
-## 12. Step 4 — Rename `tokevals-dashboard` → `tokevals-explorer` (planned 2026-10-20)
+## 12. Step 4 — Rename `tokevals-dashboard` → `tokevals-explorer` (completed 2026-10-20)
 
 Decided after §4–§5 had already completed under the `tokevals-dashboard` name. This is a second, smaller rename: one repository slug, one package name, one local directory, and the references listed below. The Worker name `tokevals-tokenizer-api` and the §6 identifiers do not change. Precondition: the Explorer checkout is clean and pushed, and no agent is working in it.
 
@@ -193,10 +194,10 @@ One commit per repository, `chore: rename dashboard to explorer`. In every file 
 
 ### 12.3 Verification
 
-- [ ] `gh repo view tokevals/tokevals-explorer` succeeds; `curl -sI https://github.com/tokevals/tokevals-dashboard | head -1` is a 301.
-- [ ] Across all five repositories `git grep -n "tokevals-dashboard\|@tokevals/dashboard"` prints nothing except historical notes in this plan.
-- [ ] Explorer: `npm ci && npm test && npm run build` passes; `server`: `npm ci && npm test && npm run build` passes; `package-lock.json` root name is `@tokevals/explorer`; the header link opens `tokevals/tokevals-explorer`.
-- [ ] Local: `~/projects/tokevals-explorer` exists with the new remote; `~/projects/tokevals-dashboard` is gone.
-- [ ] Both org profiles render with the new link.
+- [x] `gh repo view tokevals/tokevals-explorer` succeeds; `curl -sI https://github.com/tokevals/tokevals-dashboard | head -1` is a 301.
+- [x] Across all five repositories `git grep -n "tokevals-dashboard\|@tokevals/dashboard"` prints nothing except historical notes in this plan.
+- [x] Explorer: `npm ci && npm test && npm run build` passes; `server`: `npm ci && npm test && npm run build` passes; `package-lock.json` root name is `@tokevals/explorer`; the header link opens `tokevals/tokevals-explorer`.
+- [x] Local: `~/projects/tokevals-explorer` exists with the new remote; `~/projects/tokevals-dashboard` is gone.
+- [x] Both org profiles render with the new link.
 
 Add a row for this step to §9 when attempted.
