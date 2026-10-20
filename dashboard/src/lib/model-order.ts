@@ -19,6 +19,24 @@ export function moveItem<T>(
   return next;
 }
 
+/**
+ * Sorts available counts from lowest to highest. Missing counts stay at the
+ * end, and ties retain the caller's order so manual ordering remains useful.
+ */
+export function rankModelIdsByCount(
+  modelIds: readonly string[],
+  counts: ReadonlyMap<string, number>,
+): string[] {
+  return modelIds
+    .map((id, index) => ({ id, index, count: counts.get(id) }))
+    .sort((left, right) => {
+      const leftCount = left.count ?? Number.POSITIVE_INFINITY;
+      const rightCount = right.count ?? Number.POSITIVE_INFINITY;
+      return leftCount - rightCount || left.index - right.index;
+    })
+    .map(({ id }) => id);
+}
+
 export function hasCrossedSwapEdge(
   direction: -1 | 1,
   activeTop: number,

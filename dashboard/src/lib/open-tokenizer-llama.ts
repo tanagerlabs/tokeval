@@ -4,32 +4,39 @@ import {
   decodeBase64,
   decodeWholeToken,
   makeOpenModelResult,
+  sha256Hex,
   utf8Encoder,
 } from "./open-tokenizer-common";
 import type { TokenPiece, TokenizationResult } from "./tokenizer";
 
-interface LoadedLlamaTokenizer {
+interface LoadedTiktokenModel {
   encoder: Tiktoken;
   bytesByToken: Map<number, Uint8Array>;
 }
 
-// Pinned from js-tiktoken@1.0.21's o200k_base. Llama 4 uses this same
-// pre-tokenization expression, but has its own merge ranks and token IDs.
-const LLAMA_4_PATTERN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+('s|'S|'t|'T|'re|'rE|'Re|'RE|'ve|'vE|'Ve|'VE|'m|'M|'ll|'lL|'Ll|'LL|'d|'D)?|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*('s|'S|'t|'T|'re|'rE|'Re|'RE|'ve|'vE|'Ve|'VE|'m|'M|'ll|'lL|'Ll|'LL|'d|'D)?|\\p{N}{1,3}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+";
+const tokenizerCache = new Map<string, Promise<LoadedTiktokenModel>>();
 
-let llamaTokenizer: Promise<LoadedLlamaTokenizer> | undefined;
-
-async function loadLlamaTokenizer(
+async function loadTiktokenModel(
   profile: OpenModelTokenizerProfile,
-): Promise<LoadedLlamaTokenizer> {
-  if (llamaTokenizer) return llamaTokenizer;
+): Promise<LoadedTiktokenModel> {
+  const cached = tokenizerCache.get(profile.tokenizerId);
+  if (cached) return cached;
   const pending = (async () => {
-    if (!profile.artifactUrl) throw new Error("Missing Llama tokenizer URL.");
+    if (!profile.artifactUrl || !profile.pattern) {
+      throw new Error(`Missing tiktoken configuration for ${profile.label}.`);
+    }
     const response = await fetch(profile.artifactUrl);
     if (!response.ok) {
-      throw new Error(`Could not load Llama tokenizer (${response.status}).`);
+      throw new Error(`Could not load ${profile.label} tokenizer (${response.status}).`);
     }
-    const lines = (await response.text()).trim().split("\n");
+    const artifact = await response.arrayBuffer();
+    if (
+      profile.artifactSha256 &&
+      (await sha256Hex(artifact)) !== profile.artifactSha256
+    ) {
+      throw new Error(`${profile.label} tokenizer checksum did not match.`);
+    }
+    const lines = new TextDecoder().decode(artifact).trim().split("\n");
     const bytesByToken = new Map<number, Uint8Array>();
     const packedRanks = lines.map((line) => {
       const [encodedBytes, rankText] = line.split(" ");
@@ -38,15 +45,17 @@ async function loadLlamaTokenizer(
       return `! ${rank} ${encodedBytes}`;
     });
     const ranks: TiktokenBPE = {
-      pat_str: LLAMA_4_PATTERN,
+      pat_str: profile.pattern,
       special_tokens: {},
       bpe_ranks: packedRanks.join("\n"),
     };
     return { encoder: new Tiktoken(ranks), bytesByToken };
   })();
-  llamaTokenizer = pending;
+  tokenizerCache.set(profile.tokenizerId, pending);
   void pending.catch(() => {
-    if (llamaTokenizer === pending) llamaTokenizer = undefined;
+    if (tokenizerCache.get(profile.tokenizerId) === pending) {
+      tokenizerCache.delete(profile.tokenizerId);
+    }
   });
   return pending;
 }
@@ -55,13 +64,13 @@ export async function tokenizeLlamaModel(
   text: string,
   profile: OpenModelTokenizerProfile,
 ): Promise<TokenizationResult> {
-  const { encoder, bytesByToken } = await loadLlamaTokenizer(profile);
+  const { encoder, bytesByToken } = await loadTiktokenModel(profile);
   const ids = encoder.encode(text, [], []);
   const expectedBytes = utf8Encoder.encode(text);
   let cursor = 0;
   const tokens = ids.map((id, index): TokenPiece => {
     const bytes = bytesByToken.get(id);
-    if (!bytes) throw new Error(`Missing Llama byte data for token ${id}.`);
+    if (!bytes) throw new Error(`Missing byte data for token ${id} in ${profile.label}.`);
     const byteStart = cursor;
     cursor += bytes.length;
     return {
@@ -78,7 +87,7 @@ export async function tokenizeLlamaModel(
     reconstructed.length !== expectedBytes.length ||
     reconstructed.some((byte, index) => byte !== expectedBytes[index])
   ) {
-    throw new Error("Llama tokenizer did not round-trip the input UTF-8 bytes.");
+    throw new Error(`${profile.label} tokenizer did not round-trip the input UTF-8 bytes.`);
   }
   return makeOpenModelResult(profile, expectedBytes.length, tokens);
 }

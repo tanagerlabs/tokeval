@@ -14,7 +14,7 @@ const tokenizers = new Map<string, Promise<NativeSentencePieceTokenizer>>();
 async function loadTokenizer(
   profile: OpenModelTokenizerProfile,
 ): Promise<NativeSentencePieceTokenizer> {
-  const cached = tokenizers.get(profile.id);
+  const cached = tokenizers.get(profile.tokenizerId);
   if (cached) return cached;
   const pending = (async () => {
     if (!profile.artifactUrl) {
@@ -37,9 +37,11 @@ async function loadTokenizer(
     await tokenizer._loadModel(new Uint8Array(model));
     return tokenizer;
   })();
-  tokenizers.set(profile.id, pending);
+  tokenizers.set(profile.tokenizerId, pending);
   void pending.catch(() => {
-    if (tokenizers.get(profile.id) === pending) tokenizers.delete(profile.id);
+    if (tokenizers.get(profile.tokenizerId) === pending) {
+      tokenizers.delete(profile.tokenizerId);
+    }
   });
   return pending;
 }

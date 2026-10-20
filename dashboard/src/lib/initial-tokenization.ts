@@ -34,7 +34,7 @@ export const INITIAL_RESULTS: TokenizationResult[] = [
       provider: "openai",
       encoding: "cl100k_base",
       label: "OpenAI cl100k",
-      modelExamples: "GPT-4 · GPT-4 Turbo",
+      modelExamples: "GPT-4",
       accent: "blue",
     },
     tokenizerRevision: "js-tiktoken@1.0.21",

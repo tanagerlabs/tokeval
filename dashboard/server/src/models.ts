@@ -1,10 +1,43 @@
 import type { Env, ModelDefinition, ProviderName } from "./types";
+import modelCatalog from "../../catalog/models.json";
 
-const DEFAULT_MODELS = {
-  anthropic: "claude-opus-5-5",
-  google: "gemini-4-argon",
-  xai: "grok-4.7",
-} as const;
+interface HostedCatalogEntry {
+  id: string;
+  kind: "hosted";
+  provider: ProviderName;
+  upstreamModel: string;
+  environmentOverride?: "ANTHROPIC_MODEL" | "GEMINI_MODEL" | "XAI_MODEL";
+}
+
+function isProvider(value: unknown): value is ProviderName {
+  return value === "anthropic" || value === "google" || value === "xai";
+}
+
+function hostedCatalogEntries(): HostedCatalogEntry[] {
+  return modelCatalog.models.flatMap((candidate) => {
+    if (candidate.kind !== "hosted") return [];
+    if (
+      !isProvider(candidate.provider) ||
+      typeof candidate.upstreamModel !== "string"
+    ) {
+      throw new Error("Invalid hosted model in dashboard/catalog/models.json");
+    }
+    return [candidate as HostedCatalogEntry];
+  });
+}
+
+function configuredUpstreamModel(entry: HostedCatalogEntry, env: Env): string {
+  if (entry.environmentOverride === "ANTHROPIC_MODEL") {
+    return env.ANTHROPIC_MODEL ?? entry.upstreamModel;
+  }
+  if (entry.environmentOverride === "GEMINI_MODEL") {
+    return env.GEMINI_MODEL ?? entry.upstreamModel;
+  }
+  if (entry.environmentOverride === "XAI_MODEL") {
+    return env.XAI_MODEL ?? entry.upstreamModel;
+  }
+  return entry.upstreamModel;
+}
 
 function enabled(value: string | undefined, defaultValue: boolean): boolean {
   if (value === undefined) return defaultValue;
@@ -95,24 +128,12 @@ function additionalDefinitions(env: Env): ModelDefinition[] {
 
 export function buildModelRegistry(env: Env): Map<string, ModelDefinition> {
   const definitions: ModelDefinition[] = [
-    definition(
-      "anthropic-default",
-      "anthropic",
-      env.ANTHROPIC_MODEL ?? DEFAULT_MODELS.anthropic,
-      true,
-    ),
-    definition(
-      "gemini-default",
-      "google",
-      env.GEMINI_MODEL ?? DEFAULT_MODELS.google,
-      true,
-    ),
-    definition(
-      "grok-default",
-      "xai",
-      env.XAI_MODEL ?? DEFAULT_MODELS.xai,
-      enabled(env.ENABLE_XAI, false),
-    ),
+    ...hostedCatalogEntries().map((entry) => definition(
+      entry.id,
+      entry.provider,
+      configuredUpstreamModel(entry, env),
+      entry.provider !== "xai" || enabled(env.ENABLE_XAI, false),
+    )),
     ...additionalDefinitions(env),
   ];
 

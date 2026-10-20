@@ -9,17 +9,21 @@ export async function tokenizeOpenModels(
   profileIds?: readonly string[],
 ): Promise<TokenizationResult[]> {
   const selectedIds = profileIds ? new Set(profileIds) : null;
-  return Promise.all(
-    OPEN_MODEL_PROFILES
-      .filter((profile) => !selectedIds || selectedIds.has(profile.id))
-      .map((profile) => {
-        if (profile.decoder === "tiktoken") {
-          return tokenizeLlamaModel(text, profile);
-        }
-        if (profile.decoder === "native_sentencepiece") {
-          return tokenizeSentencePieceModel(text, profile);
-        }
-        return tokenizeHuggingFaceModel(text, profile);
-      }),
+  const profiles = OPEN_MODEL_PROFILES.filter(
+    (profile) => !selectedIds || selectedIds.has(profile.id),
   );
+  const byTokenizer = new Map<string, Promise<TokenizationResult>>();
+  return Promise.all(profiles.map(async (profile) => {
+    let pending = byTokenizer.get(profile.tokenizerId);
+    if (!pending) {
+      pending = profile.decoder === "tiktoken"
+        ? tokenizeLlamaModel(text, profile)
+        : profile.decoder === "native_sentencepiece"
+          ? tokenizeSentencePieceModel(text, profile)
+          : tokenizeHuggingFaceModel(text, profile);
+      byTokenizer.set(profile.tokenizerId, pending);
+    }
+    const result = await pending;
+    return { ...result, profile };
+  }));
 }

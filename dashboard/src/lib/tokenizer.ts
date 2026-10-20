@@ -1,27 +1,26 @@
 import { Tiktoken, type TiktokenBPE } from "js-tiktoken/lite";
+import { CORE_CATALOG_MODELS } from "./catalog";
+import type { ModelKind } from "./catalog";
 
 export const ENCODING_NAMES = ["o200k_base", "cl100k_base"] as const;
 
 export type EncodingName = (typeof ENCODING_NAMES)[number];
 
-export type TokenizerProvider =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "deepseek"
-  | "meta"
-  | "mistral"
-  | "cohere"
-  | "xai";
+export type TokenizerProvider = string;
 
 export interface TokenizerProfile {
   id: string;
+  kind?: ModelKind;
+  tokenizerId?: string;
   provider: TokenizerProvider;
   encoding: string;
   label: string;
   modelExamples: string;
   accent: "coral" | "blue";
   sourceUrl?: string;
+  supportsBoundaries?: boolean;
+  artifactSizeBytes?: number;
+  boundaryLimitation?: string;
 }
 
 export interface TokenPiece {
@@ -39,26 +38,15 @@ export interface TokenizationResult {
   countSource: "local_tokenizer";
   inputBytes: number;
   tokens: TokenPiece[];
+  /** Exact total when a tokenizer cannot expose lossless raw-input boundaries. */
+  tokenCount?: number;
 }
 
-export const TOKENIZER_PROFILES: Record<EncodingName, TokenizerProfile> = {
-  o200k_base: {
-    id: "openai-o200k",
-    provider: "openai",
-    encoding: "o200k_base",
-    label: "OpenAI o200k",
-    modelExamples: "GPT-5",
-    accent: "coral",
-  },
-  cl100k_base: {
-    id: "openai-cl100k",
-    provider: "openai",
-    encoding: "cl100k_base",
-    label: "OpenAI cl100k",
-    modelExamples: "GPT-4 · GPT-4 Turbo",
-    accent: "blue",
-  },
-};
+export const TOKENIZER_PROFILES = Object.fromEntries(
+  CORE_CATALOG_MODELS
+    .filter((model) => model.id === model.tokenizerId)
+    .map(({ kind: _kind, tokenizerId: _tokenizerId, ...model }) => [model.encoding, model]),
+) as Record<EncodingName, TokenizerProfile>;
 
 interface LoadedEncoding {
   encoder: Tiktoken;
@@ -180,10 +168,17 @@ export async function tokenizeAll(
   ),
 ): Promise<TokenizationResult[]> {
   const selected = new Set(profileIds);
-  return Promise.all(
-    ENCODING_NAMES
-      .filter((encoding) => selected.has(TOKENIZER_PROFILES[encoding].id))
-      .map((encoding) => tokenize(text, encoding)),
-  );
+  const profiles = CORE_CATALOG_MODELS.filter((profile) => selected.has(profile.id));
+  const byEncoding = new Map<EncodingName, Promise<TokenizationResult>>();
+  return Promise.all(profiles.map(async (profile) => {
+    const encoding = profile.encoding as EncodingName;
+    let pending = byEncoding.get(encoding);
+    if (!pending) {
+      pending = tokenize(text, encoding);
+      byEncoding.set(encoding, pending);
+    }
+    const result = await pending;
+    return profile.id === profile.tokenizerId ? result : { ...result, profile };
+  }));
 }
 

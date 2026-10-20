@@ -26,8 +26,34 @@ describe("TokenComparer first render", () => {
     }
 
     expect(html.match(/<article/g)).toHaveLength(5);
-    expect(html).toContain("Add a model or tokenizer");
+    expect(html).toContain("Add models / providers");
+    expect(html).toContain("Add models and tokenizers");
+    for (const provider of [
+      "OpenAI",
+      "xAI",
+      "Anthropic",
+      "Mistral AI",
+      "Google",
+      "Meta",
+      "DeepSeek",
+      "Cohere",
+      "Alibaba Qwen",
+      "Microsoft",
+      "Moonshot AI",
+      "Z.ai",
+      "IBM",
+      "NVIDIA",
+    ]) {
+      expect(html).toContain(`<h3>${provider}</h3>`);
+    }
+    expect(html.match(/type="checkbox"/g)).toHaveLength(54);
+    expect(html).toContain("Add selected");
     expect(html).toContain("Gemini 3 Pro Preview (local)");
+    expect(html).toContain("GPT-5.1");
+    expect(html).toContain("Llama 4 Scout");
+    expect(html).toContain("Qwen3 235B-A22B");
+    expect(html).toContain("Shared local tokenizer");
+    expect(html).toContain("ranked by fewest tokens");
     expect(html).toContain("<strong>18</strong> tokens");
     expect(html).toContain("<strong>8</strong> tokens");
     expect(html).toContain("<strong>10</strong> tokens");
@@ -64,6 +90,17 @@ describe("TokenComparer first render", () => {
     const gptExact = html.indexOf("class=\"exact-badge\"", gptRow);
     const gptCount = html.indexOf("<strong>7</strong>", gptRow);
     expect(gptExact).toBeLessThan(gptCount);
+    const resultHeadings = Array.from(
+      html.matchAll(/<article[\s\S]*?<h2>([^<]+)<\/h2>/g),
+      (match) => match[1],
+    );
+    expect(resultHeadings).toEqual([
+      "GPT-5",
+      "Meta Llama 4",
+      "Gemini 4 Argon",
+      "Grok 4.7",
+      "Claude Opus 5.5",
+    ]);
   });
 
   test("shows one consistent zero-token empty state for every model", () => {

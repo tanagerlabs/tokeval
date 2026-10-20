@@ -245,11 +245,14 @@ describe("Worker request handling", () => {
     const body = (await response.json()) as { models: Array<Record<string, unknown>> };
 
     expect(response.status).toBe(200);
-    expect(body.models).toMatchObject([
-      { id: "anthropic-default", upstream_model: "claude-configured", enabled: true },
-      { id: "gemini-default", upstream_model: "gemini-configured", enabled: true },
-      { id: "grok-default", upstream_model: "grok-configured", enabled: false },
-    ]);
+    expect(body.models).toHaveLength(15);
+    expect(body.models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "anthropic-default", upstream_model: "claude-configured", enabled: true }),
+      expect.objectContaining({ id: "gemini-default", upstream_model: "gemini-configured", enabled: true }),
+      expect.objectContaining({ id: "grok-default", upstream_model: "grok-configured", enabled: false }),
+      expect.objectContaining({ id: "anthropic-claude-sonnet-5-5", upstream_model: "claude-sonnet-5-5" }),
+      expect.objectContaining({ id: "google-gemini-3.8-flash", upstream_model: "gemini-3.8-flash" }),
+    ]));
   });
 
   test("loads additional models from configuration without adapter code changes", async () => {

@@ -5,10 +5,12 @@ import ThemeToggle from "../components/ThemeToggle.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { INITIAL_HOSTED_RESULTS } from "../lib/initial-hosted-results";
 import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
+import { loadHostedModelProfiles } from "../lib/hosted-tokenizer";
 
 const description =
-  "Compare token counts and available breakdowns from OpenAI, Anthropic, Google Gemini, DeepSeek, Meta Llama, Mistral, Cohere, and xAI across multilingual text.";
+  "Compare multilingual token counts and available breakdowns across leading hosted and open-weight model providers.";
 const currentYear = new Date().getFullYear();
+const hostedProfiles = await loadHostedModelProfiles();
 ---
 
 <BaseLayout title="Multilingual Token Explorer" description={description}>
@@ -50,6 +52,7 @@ const currentYear = new Date().getFullYear();
         initialText={INITIAL_TEXT}
         initialResults={INITIAL_RESULTS}
         initialHostedResults={INITIAL_HOSTED_RESULTS}
+        hostedProfiles={hostedProfiles}
       />
     </main>
 

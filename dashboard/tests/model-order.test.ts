@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasCrossedSwapEdge,
   moveItem,
+  rankModelIdsByCount,
 } from "../src/lib/model-order";
 
 describe("model ordering", () => {
@@ -26,6 +27,30 @@ describe("model ordering", () => {
 
     expect(next).toEqual(current);
     expect(next).not.toBe(current);
+  });
+});
+
+describe("efficiency ranking", () => {
+  it("places the lowest exact or displayed count first", () => {
+    const counts = new Map([
+      ["large", 18],
+      ["small", 7],
+      ["medium", 10],
+    ]);
+    expect(rankModelIdsByCount(["large", "small", "medium"], counts)).toEqual([
+      "small",
+      "medium",
+      "large",
+    ]);
+  });
+
+  it("keeps ties stable and unavailable models last", () => {
+    const counts = new Map([["beta", 4], ["alpha", 4]]);
+    expect(rankModelIdsByCount(["missing", "beta", "alpha"], counts)).toEqual([
+      "beta",
+      "alpha",
+      "missing",
+    ]);
   });
 });
 

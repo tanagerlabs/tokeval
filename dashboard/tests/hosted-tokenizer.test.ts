@@ -4,6 +4,7 @@ import {
   HOSTED_MODEL_PROFILES,
   HostedApiError,
   hostedTokenizerInternals,
+  hostedProfilesFromModelPayload,
   readHostedSessionCache,
 } from "../src/lib/hosted-tokenizer";
 import { INITIAL_HOSTED_RESULTS } from "../src/lib/initial-hosted-results";
@@ -15,6 +16,42 @@ afterEach(() => {
 });
 
 describe("hosted tokenizer client", () => {
+  test("builds profiles from a Worker model-list snapshot", () => {
+    const profiles = hostedProfilesFromModelPayload({
+      schema_version: "1",
+      models: [
+        { id: "anthropic-default", provider: "anthropic", upstream_model: "claude-opus-5-5", capability: "count_only", count_source: "hosted_message_count", enabled: true },
+        { id: "anthropic-second", provider: "anthropic", upstream_model: "claude-second", capability: "count_only", count_source: "hosted_message_count", enabled: false },
+        { id: "gemini-default", provider: "google", upstream_model: "gemini-4-argon", capability: "count_only", count_source: "hosted_input_count", enabled: true },
+        { id: "google-second", provider: "google", upstream_model: "gemini-second", capability: "count_only", count_source: "hosted_input_count", enabled: true },
+        { id: "grok-default", provider: "xai", upstream_model: "grok-4.7", capability: "token_breakdown", count_source: "hosted_token_breakdown", enabled: true },
+      ],
+    });
+
+    expect(profiles).toHaveLength(5);
+    expect(profiles[1]).toMatchObject({
+      id: "anthropic-second",
+      modelExamples: "Claude Second",
+      enabled: false,
+      supportsBoundaries: false,
+    });
+  });
+
+  test("rejects unknown providers in a Worker model-list snapshot", () => {
+    expect(() => hostedProfilesFromModelPayload({
+      models: [{
+        id: "unknown-model",
+        provider: "unknown",
+        upstream_model: "unknown-1",
+        capability: "count_only",
+        count_source: "hosted_input_count",
+        enabled: true,
+      }],
+    })).toThrow(expect.objectContaining<Partial<HostedApiError>>({
+      code: "INVALID_MODEL_CATALOG",
+    }));
+  });
+
   test("ships provider-verified first-load values with byte-safe Grok tokens", () => {
     expect(
       INITIAL_HOSTED_RESULTS.map((result) => ({

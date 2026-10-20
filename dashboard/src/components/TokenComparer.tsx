@@ -13,6 +13,7 @@ import {
   HOSTED_MODEL_PROFILES,
   HostedApiError,
   readHostedSessionCache,
+  type HostedModelProfile,
   type HostedResult,
   type HostedStatus,
 } from "../lib/hosted-tokenizer";
@@ -21,12 +22,18 @@ import {
   defaultModelOrder,
 } from "../lib/model-catalog";
 import { OPEN_MODEL_PROFILES } from "../lib/open-model-profiles";
-import { hasCrossedSwapEdge, moveItem } from "../lib/model-order";
+import { CORE_CATALOG_MODELS } from "../lib/catalog";
+import {
+  hasCrossedSwapEdge,
+  moveItem,
+  rankModelIdsByCount,
+} from "../lib/model-order";
 import {
   removeTokenizationResults,
   replaceTokenizationResults,
 } from "../lib/tokenization-results";
 import type { TokenizationResult } from "../lib/tokenizer";
+import { ModelPicker } from "./ModelPicker";
 import { ProviderLogo } from "./ProviderLogo";
 import { EmptyTokenOutput, TokenCard } from "./TokenCard";
 import { TokenCountPlaceholder } from "./TokenCountPlaceholder";
@@ -35,15 +42,29 @@ interface TokenComparerProps {
   initialText: string;
   initialResults: TokenizationResult[];
   initialHostedResults: HostedResult[];
+  hostedProfiles?: HostedModelProfile[];
 }
 
 const HOSTED_DEBOUNCE_MS = 650;
 const XAI_HOSTED_DEBOUNCE_MS = 1300;
-const CORE_MODEL_IDS = ["openai-o200k", "openai-cl100k"] as const;
+const CORE_MODEL_IDS = CORE_CATALOG_MODELS.map((profile) => profile.id);
 const JS_TIKTOKEN_REVISION_PATTERN = /^js-tiktoken@(\d+\.\d+\.\d+)$/;
 
 function resultKey(result: TokenizationResult): string {
   return result.profile.id || result.profile.encoding;
+}
+
+function tokenizerKey(profile: TokenizationResult["profile"]): string {
+  return profile.tokenizerId ?? profile.id;
+}
+
+function localTokenCount(result: TokenizationResult): number {
+  return result.tokenCount ?? result.tokens.length;
+}
+
+function hostedTokenCount(result: HostedResult): number | undefined {
+  if (result.status !== "ok") return undefined;
+  return result.contentTokenCount ?? result.tokenCount ?? undefined;
 }
 
 function tokenizerRevisionUrl(result: TokenizationResult): string | undefined {
@@ -174,18 +195,25 @@ export function TokenComparer({
   initialText,
   initialResults,
   initialHostedResults,
+  hostedProfiles = HOSTED_MODEL_PROFILES,
 }: TokenComparerProps) {
   const inputId = useId();
   const reorderHelpId = useId();
-  const addModelId = useId();
   const modelCatalog = useMemo(
-    () => buildModelCatalog(initialResults),
-    [initialResults],
+    () => buildModelCatalog(initialResults, hostedProfiles),
+    [initialResults, hostedProfiles],
   );
-  const initialModelOrder = useMemo(
-    () => defaultModelOrder(modelCatalog),
-    [modelCatalog],
-  );
+  const initialModelOrder = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const result of initialResults) {
+      counts.set(resultKey(result), localTokenCount(result));
+    }
+    for (const result of initialHostedResults) {
+      const count = hostedTokenCount(result);
+      if (count !== undefined) counts.set(result.profile.id, count);
+    }
+    return rankModelIdsByCount(defaultModelOrder(modelCatalog), counts);
+  }, [initialHostedResults, initialResults, modelCatalog]);
   const initialOpenModelIds = OPEN_MODEL_PROFILES
     .filter((profile) => initialModelOrder.includes(profile.id))
     .map((profile) => profile.id);
@@ -198,13 +226,14 @@ export function TokenComparer({
   const hasPreloadedOpenResults = initialOpenModelIds.every((id) =>
     initialResults.some((result) => result.profile.id === id),
   );
-  const hasPreloadedHostedResults = HOSTED_MODEL_PROFILES
+  const hasPreloadedHostedResults = hostedProfiles
     .filter((profile) => initialModelOrder.includes(profile.id))
     .every((profile) =>
       initialHostedResults.some((result) => result.profile.id === profile.id),
     );
   const requestId = useRef(0);
   const hostedAbortController = useRef<AbortController | null>(null);
+  const addedHostedControllers = useRef(new Set<AbortController>());
   const lastHostedTokenizedKey = useRef(
     hasPreloadedHostedResults
       ? `hosted:0:${initialText}`
@@ -220,6 +249,7 @@ export function TokenComparer({
   );
   const [text, setText] = useState(initialText);
   const [results, setResults] = useState(initialResults);
+  const resultsRef = useRef(results);
   const [reducedTokenizerIds, setReducedTokenizerIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -234,14 +264,22 @@ export function TokenComparer({
     hasPreloadedCoreResults && hasPreloadedOpenResults ? "ready" : "loading",
   );
   const [modelOrder, setModelOrder] = useState(initialModelOrder);
-  const [selectedAddModelId, setSelectedAddModelId] = useState("");
+  const [addingModelIds, setAddingModelIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [addModelErrors, setAddModelErrors] = useState<Map<string, string>>(
+    () => new Map(),
+  );
   const modelOrderRef = useRef(modelOrder);
+  const textRef = useRef(text);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [reorderAnnouncement, setReorderAnnouncement] = useState("");
 
   modelOrderRef.current = modelOrder;
+  textRef.current = text;
+  resultsRef.current = results;
 
-  const activeHostedProfiles = HOSTED_MODEL_PROFILES.filter((profile) =>
+  const activeHostedProfiles = hostedProfiles.filter((profile) =>
     modelOrder.includes(profile.id),
   );
   const activeCoreModelIds = CORE_MODEL_IDS.filter((id) =>
@@ -257,6 +295,47 @@ export function TokenComparer({
   activeHostedProfilesRef.current = activeHostedProfiles;
   activeCoreModelIdsRef.current = activeCoreModelIds;
   activeOpenModelIdsRef.current = activeOpenModelIds;
+
+  useEffect(() => {
+    if (
+      text.length === 0 ||
+      status === "loading" ||
+      hostedStatus === "loading" ||
+      addingModelIds.size > 0 ||
+      dragState.current
+    ) {
+      return;
+    }
+
+    const activeIds = new Set(modelOrderRef.current);
+    const counts = new Map<string, number>();
+    for (const result of results) {
+      const id = resultKey(result);
+      if (activeIds.has(id)) counts.set(id, localTokenCount(result));
+    }
+    if (hostedStatus === "ready") {
+      for (const result of hostedResults) {
+        if (!activeIds.has(result.profile.id)) continue;
+        const count = hostedTokenCount(result);
+        if (count !== undefined) counts.set(result.profile.id, count);
+      }
+    }
+    const currentOrder = modelOrderRef.current;
+    const rankedOrder = rankModelIdsByCount(currentOrder, counts);
+    if (rankedOrder.some((id, index) => id !== currentOrder[index])) {
+      applyModelOrder(rankedOrder);
+      setReorderAnnouncement(
+        "Models ranked from the fewest displayed tokens to the most.",
+      );
+    }
+  }, [addingModelIds, hostedResults, hostedStatus, results, status, text]);
+
+  useEffect(() => {
+    for (const controller of addedHostedControllers.current) controller.abort();
+    addedHostedControllers.current.clear();
+    setAddingModelIds(new Set());
+    setAddModelErrors(new Map());
+  }, [text]);
 
   useLayoutEffect(() => {
     const previous = previousRowPositions.current;
@@ -303,8 +382,9 @@ export function TokenComparer({
     let cancelled = false;
     const currentRequest = ++requestId.current;
     // Selection is intentionally read through refs instead of being an effect
-    // dependency. Adding, removing, or reordering cards must not tokenize text;
-    // only a text edit (or an explicit retry) starts this work.
+    // dependency. This bulk pass is reserved for text edits and explicit
+    // retries; additions use the targeted path below, while removals and
+    // reordering do not re-tokenize existing cards.
     const activeCoreIds = [...activeCoreModelIdsRef.current];
     const activeOpenIds = [...activeOpenModelIdsRef.current];
     const activeLocalIds = new Set([...activeCoreIds, ...activeOpenIds]);
@@ -391,8 +471,8 @@ export function TokenComparer({
   useEffect(() => {
     hostedAbortController.current?.abort();
 
-    // As with local tokenizers, list changes update this ref without starting a
-    // provider request. A text edit or explicit retry is the only trigger.
+    // As with local tokenizers, this bulk pass is reserved for text edits and
+    // explicit retries. Newly added providers use the targeted path below.
     const requestedProfiles = [...activeHostedProfilesRef.current];
     if (requestedProfiles.length === 0) {
       setHostedStatus("ready");
@@ -512,20 +592,144 @@ export function TokenComparer({
     });
   }
 
-  function addModel(): void {
-    const current = modelOrderRef.current;
-    const addable = modelCatalog.filter(
-      (profile) => !current.includes(profile.id),
-    );
-    const profile =
-      addable.find((candidate) => candidate.id === selectedAddModelId) ??
-      addable[0];
-    if (!profile) return;
+  function finishAddedModels(
+    modelIds: readonly string[],
+    sourceText: string,
+    errorCode?: string,
+  ): void {
+    if (textRef.current !== sourceText) return;
+    const ids = new Set(modelIds);
+    setAddingModelIds((current) => new Set(
+      Array.from(current).filter((id) => !ids.has(id)),
+    ));
+    setAddModelErrors((current) => {
+      const next = new Map(current);
+      for (const id of modelIds) {
+        if (errorCode) next.set(id, errorCode);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
 
-    applyModelOrder([...current, profile.id]);
-    setSelectedAddModelId("");
+  function evaluateAddedModels(modelIds: readonly string[]): void {
+    const sourceText = textRef.current;
+    if (sourceText.length === 0) return;
+
+    setAddingModelIds((current) => new Set([...current, ...modelIds]));
+    setAddModelErrors((current) => {
+      const next = new Map(current);
+      for (const id of modelIds) next.delete(id);
+      return next;
+    });
+
+    const reusableResults: TokenizationResult[] = [];
+    const reusedIds = new Set<string>();
+    for (const modelId of modelIds) {
+      const profile = modelCatalog.find((candidate) => candidate.id === modelId);
+      if (!profile || profile.kind === "hosted") continue;
+      const reusable = resultsRef.current.find((result) =>
+        tokenizerKey(result.profile) === tokenizerKey(profile)
+      );
+      if (!reusable) continue;
+      reusableResults.push({ ...reusable, profile });
+      reusedIds.add(modelId);
+    }
+    if (reusableResults.length > 0) {
+      setResults((current) => replaceTokenizationResults(
+        current,
+        reusableResults,
+        reusedIds,
+      ));
+      finishAddedModels([...reusedIds], sourceText);
+    }
+
+    const pendingModelIds = modelIds.filter((id) => !reusedIds.has(id));
+    const coreIds = CORE_MODEL_IDS.filter((id) => pendingModelIds.includes(id));
+    const openIds = OPEN_MODEL_PROFILES
+      .filter((profile) => pendingModelIds.includes(profile.id))
+      .map((profile) => profile.id);
+    const addedHostedProfiles = hostedProfiles.filter((profile) =>
+      pendingModelIds.includes(profile.id)
+    );
+
+    if (coreIds.length > 0) {
+      const coreIdSet = new Set<string>(coreIds);
+      void import("../lib/tokenizer")
+        .then(({ tokenizeAll }) => tokenizeAll(sourceText, coreIds))
+        .then((next) => {
+          if (textRef.current !== sourceText) return;
+          setResults((current) =>
+            replaceTokenizationResults(current, next, coreIdSet)
+          );
+          finishAddedModels(coreIds, sourceText);
+        })
+        .catch((error: unknown) => {
+          console.error("Added local tokenizer failed.", error);
+          finishAddedModels(coreIds, sourceText, "LOCAL_TOKENIZER_FAILED");
+        });
+    }
+
+    if (openIds.length > 0) {
+      const openIdSet = new Set<string>(openIds);
+      void import("../lib/open-tokenizer-client")
+        .then(({ tokenizeOpenModelsInWorker }) =>
+          tokenizeOpenModelsInWorker(sourceText, openIds)
+        )
+        .then((next) => {
+          if (textRef.current !== sourceText) return;
+          setResults((current) =>
+            replaceTokenizationResults(current, next, openIdSet)
+          );
+          finishAddedModels(openIds, sourceText);
+        })
+        .catch((error: unknown) => {
+          console.error("Added open-model tokenizer failed.", error);
+          finishAddedModels(openIds, sourceText, "LOCAL_TOKENIZER_FAILED");
+        });
+    }
+
+    if (addedHostedProfiles.length > 0) {
+      const controller = new AbortController();
+      const hostedIds = addedHostedProfiles.map((profile) => profile.id);
+      addedHostedControllers.current.add(controller);
+      void compareHostedText(sourceText, controller.signal, addedHostedProfiles)
+        .then((next) => {
+          if (controller.signal.aborted || textRef.current !== sourceText) return;
+          const hostedIdSet = new Set<string>(hostedIds);
+          setHostedResults((current) => [
+            ...current.filter((result) => !hostedIdSet.has(result.profile.id)),
+            ...next,
+          ]);
+          finishAddedModels(hostedIds, sourceText);
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          const code = error instanceof HostedApiError
+            ? error.code
+            : "REQUEST_FAILED";
+          finishAddedModels(hostedIds, sourceText, code);
+        })
+        .finally(() => addedHostedControllers.current.delete(controller));
+    }
+  }
+
+  function addModels(modelIds: string[]): void {
+    const current = modelOrderRef.current;
+    const catalogIds = new Set(modelCatalog.map((profile) => profile.id));
+    const newIds = modelIds.filter((id) =>
+      catalogIds.has(id) && !current.includes(id)
+    );
+    if (newIds.length === 0) return;
+
+    applyModelOrder([...newIds, ...current]);
+    evaluateAddedModels(newIds);
+    const modelNames = newIds.flatMap((id) => {
+      const profile = modelCatalog.find((candidate) => candidate.id === id);
+      return profile ? [profile.modelExamples] : [];
+    });
     setReorderAnnouncement(
-      `${profile.modelExamples} added at position ${current.length + 1}.`,
+      `${modelNames.join(", ")} added to the top of the comparison.`,
     );
   }
 
@@ -535,6 +739,16 @@ export function TokenComparer({
     applyModelOrder(next);
     setReducedTokenizerIds((current) => {
       const updated = new Set(current);
+      updated.delete(modelId);
+      return updated;
+    });
+    setAddingModelIds((current) => {
+      const updated = new Set(current);
+      updated.delete(modelId);
+      return updated;
+    });
+    setAddModelErrors((current) => {
+      const updated = new Map(current);
       updated.delete(modelId);
       return updated;
     });
@@ -751,13 +965,6 @@ export function TokenComparer({
   const byteCount = new TextEncoder().encode(text).length;
   const characterCount = Array.from(text).length;
   const selectedModelIds = new Set(modelOrder);
-  const addableProfiles = modelCatalog.filter(
-    (profile) => !selectedModelIds.has(profile.id),
-  );
-  const effectiveAddModelId =
-    addableProfiles.find((profile) => profile.id === selectedAddModelId)?.id ??
-    addableProfiles[0]?.id ??
-    "";
   const visibleLocalResults = results.filter((result) =>
     selectedModelIds.has(resultKey(result)),
   );
@@ -767,7 +974,7 @@ export function TokenComparer({
   const tokenCounts = text.length === 0
     ? modelOrder.map(() => 0)
     : [
-        ...visibleLocalResults.map((result) => result.tokens.length),
+        ...visibleLocalResults.map(localTokenCount),
         ...visibleHostedResults.flatMap((result) =>
           result.status === "ok" &&
           (result.contentTokenCount !== null || result.tokenCount !== null)
@@ -779,7 +986,7 @@ export function TokenComparer({
   const maximumTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
   const comparisonSummary =
     tokenCounts.length > 0
-      ? `${modelOrder.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}`
+      ? `${modelOrder.length} models · ${minimumTokens}–${maximumTokens} tokens · spread ${maximumTokens - minimumTokens}${text.length > 0 ? " · ranked by fewest tokens" : ""}`
       : `${modelOrder.length} models`;
   return (
     <section className="comparer" aria-label="Tokenizer comparison">
@@ -823,37 +1030,17 @@ export function TokenComparer({
         </div>
       </div>
 
-      <div className="model-picker">
-        <label htmlFor={addModelId}>Add a model or tokenizer</label>
-        <select
-          id={addModelId}
-          value={effectiveAddModelId}
-          disabled={addableProfiles.length === 0}
-          onChange={(event) => setSelectedAddModelId(event.target.value)}
-        >
-          {addableProfiles.length === 0 ? (
-            <option value="">All available models are shown</option>
-          ) : (
-            addableProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.modelExamples} — {profile.label}
-              </option>
-            ))
-          )}
-        </select>
-        <button
-          type="button"
-          disabled={addableProfiles.length === 0}
-          onClick={addModel}
-        >
-          <span aria-hidden="true">+</span> Add
-        </button>
-      </div>
+      <ModelPicker
+        profiles={modelCatalog}
+        activeModelIds={selectedModelIds}
+        onAdd={addModels}
+      />
 
       <p className="visually-hidden" id={reorderHelpId}>
         Drag the card surface to reorder, or focus the card and use the up and
         down arrow keys. Home and End move a model to the start or end of the
-        list. Text, token boxes, and card controls do not start dragging.
+        list. Text, token boxes, and card controls do not start dragging. A new
+        text calculation ranks the cards by their displayed token count again.
       </p>
       <p className="visually-hidden" aria-live="polite" aria-atomic="true">
         {reorderAnnouncement}
@@ -862,16 +1049,18 @@ export function TokenComparer({
         className={`results-list ${text.length > 0 && status === "loading" ? "is-loading" : ""} ${draggingId ? "results-list--dragging" : ""}`}
       >
         {modelOrder.map((modelId) => {
+          const isAdding = addingModelIds.has(modelId);
+          const addError = addModelErrors.get(modelId) ?? null;
           const localResult = results.find(
             (candidate) => resultKey(candidate) === modelId,
           );
 
-          if (localResult) {
+          if (localResult && !isAdding && !addError) {
             const isReduced = reducedTokenizerIds.has(modelId);
             const modelName = localResult.profile.modelExamples;
             const displayCount = text.length === 0
               ? 0
-              : localResult.tokens.length;
+              : localResult.tokenCount ?? localResult.tokens.length;
             const revisionUrl = tokenizerRevisionUrl(localResult);
             const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
 
@@ -928,6 +1117,19 @@ export function TokenComparer({
                   <div className="result-panel__body-inner">
                     {text.length === 0 ? (
                       <EmptyTokenOutput label={localResult.profile.label} />
+                    ) : localResult.profile.supportsBoundaries === false ? (
+                      <>
+                        <TokenCountPlaceholder
+                          count={displayCount}
+                          label={modelName}
+                          approximate={false}
+                        />
+                        <p className="hosted-output-note">
+                          {localResult.profile.boundaryLimitation ??
+                            "This tokenizer exposes an exact local count, but not lossless raw-input token boundaries."}
+                          {" "}Empty boxes represent the exact token total.
+                        </p>
+                      </>
                     ) : (
                       <TokenCard result={localResult} />
                     )}
@@ -982,12 +1184,12 @@ export function TokenComparer({
                     <p>
                       {text.length === 0 ? (
                         <><strong>0</strong> tokens</>
-                      ) : status === "error" ? (
+                      ) : addError || status === "error" ? (
                         "Unavailable"
-                      ) : status === "ready" ? (
-                        "Edit text to calculate"
-                      ) : (
+                      ) : isAdding || status === "loading" ? (
                         "Loading tokenizer…"
+                      ) : (
+                        "Edit text to calculate"
                       )}
                     </p>
                     <button
@@ -1009,14 +1211,22 @@ export function TokenComparer({
                     {renderRemoveButton(modelId, modelName)}
                   </div>
                 </header>
-                {text.length === 0 && (
+                {(text.length === 0 || isAdding || addError) && (
                   <div
                     className="result-panel__body"
                     aria-hidden={isReduced}
                     inert={isReduced}
                   >
                     <div className="result-panel__body-inner">
-                      <EmptyTokenOutput label={pendingProfile.label} />
+                      {text.length === 0 ? (
+                        <EmptyTokenOutput label={pendingProfile.label} />
+                      ) : (
+                        <p className="hosted-output-note">
+                          {addError
+                            ? "This tokenizer could not be loaded."
+                            : "Loading tokenizer…"}
+                        </p>
+                      )}
                       <p className="result-panel__revision">
                         Local · {pendingProfile.encoding}
                       </p>
@@ -1027,14 +1237,16 @@ export function TokenComparer({
             );
           }
 
-          const profile = HOSTED_MODEL_PROFILES.find(
+          const profile = hostedProfiles.find(
             (candidate) => candidate.id === modelId,
           );
           if (!profile) return null;
 
-          const result = hostedResults.find(
-            (candidate) => candidate.profile.id === profile.id,
-          );
+          const result = isAdding || addError
+            ? undefined
+            : hostedResults.find(
+              (candidate) => candidate.profile.id === profile.id,
+            );
           const isReduced = reducedTokenizerIds.has(modelId);
           const modelName = profile.modelExamples;
           const toggleLabel = `${isReduced ? "Expand" : "Reduce"} ${modelName}`;
@@ -1079,14 +1291,16 @@ export function TokenComparer({
                   )}
                   <p aria-live="polite">
                     {text.length === 0 && <><strong>0</strong> tokens</>}
-                    {text.length > 0 && hostedStatus === "loading" &&
+                    {text.length > 0 && isAdding && "Counting…"}
+                    {text.length > 0 && addError && "Unavailable"}
+                    {text.length > 0 && !isAdding && !addError && hostedStatus === "loading" &&
                       "Counting…"}
-                    {text.length > 0 && hostedStatus === "error" && "Unavailable"}
-                    {text.length > 0 && hostedStatus === "ready" && isUnavailable &&
+                    {text.length > 0 && !isAdding && !addError && hostedStatus === "error" && "Unavailable"}
+                    {text.length > 0 && !isAdding && !addError && hostedStatus === "ready" && isUnavailable &&
                       "Unavailable"}
-                    {text.length > 0 && hostedStatus === "ready" && !result &&
+                    {text.length > 0 && !isAdding && !addError && hostedStatus === "ready" && !result &&
                       "Edit text to calculate"}
-                    {text.length > 0 && hostedStatus === "ready" && displayCount !== null && (
+                    {text.length > 0 && !isAdding && !addError && hostedStatus === "ready" && displayCount !== null && (
                       <>
                         <strong>{displayCount}</strong>
                         {contentCount !== null || profile.supportsBoundaries
@@ -1123,16 +1337,26 @@ export function TokenComparer({
                   {text.length === 0 && (
                     <EmptyTokenOutput label={profile.label} />
                   )}
-                  {text.length > 0 && hostedStatus === "loading" && (
+                  {text.length > 0 && !isAdding && !addError &&
+                    hostedStatus === "loading" && (
                     <p className="hosted-output-note">Contacting provider…</p>
                   )}
-                  {text.length > 0 && hostedStatus === "error" && (
+                  {text.length > 0 && isAdding && (
+                    <p className="hosted-output-note">Contacting provider…</p>
+                  )}
+                  {text.length > 0 && addError && (
+                    <p className="hosted-output-note">{hostedErrorMessage(addError)}</p>
+                  )}
+                  {text.length > 0 && !isAdding && !addError &&
+                    hostedStatus === "error" && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {text.length > 0 && hostedStatus === "ready" && isUnavailable && (
+                  {text.length > 0 && !isAdding && !addError &&
+                    hostedStatus === "ready" && isUnavailable && (
                     <p className="hosted-output-note">{hostedErrorMessage(rowError)}</p>
                   )}
-                  {text.length > 0 && hostedStatus === "ready" && !result && (
+                  {text.length > 0 && !isAdding && !addError &&
+                    hostedStatus === "ready" && !result && (
                     <p className="hosted-output-note">
                       Edit the input text to calculate this model.
                     </p>

@@ -1,13 +1,20 @@
 import type { TokenPiece, TokenizerProfile } from "./tokenizer";
+import {
+  HOSTED_CATALOG_MODELS,
+  providerCatalogEntry,
+  type HostedCountSource,
+} from "./catalog";
 
 export type HostedProvider = "anthropic" | "google" | "xai";
 export type HostedStatus = "loading" | "ready" | "error";
 
 export interface HostedModelProfile extends TokenizerProfile {
-  id: "anthropic-default" | "gemini-default" | "grok-default";
+  id: string;
+  kind: "hosted";
   provider: HostedProvider;
-  countSource: "hosted_message_count" | "hosted_input_count" | "hosted_token_breakdown";
+  countSource: HostedCountSource;
   supportsBoundaries: boolean;
+  enabled: boolean;
 }
 
 export interface HostedProviderError {
@@ -31,41 +38,125 @@ export interface HostedResult {
   error: HostedProviderError | null;
 }
 
-export const HOSTED_MODEL_PROFILES: HostedModelProfile[] = [
-  {
-    id: "anthropic-default",
-    provider: "anthropic",
-    encoding: "hosted message count",
-    label: "Anthropic Claude",
-    modelExamples: "Claude Opus 5.5",
-    accent: "coral",
-    countSource: "hosted_message_count",
-    supportsBoundaries: false,
-    sourceUrl: "https://platform.claude.com/docs/en/build-with-claude/token-counting",
-  },
-  {
-    id: "gemini-default",
-    provider: "google",
-    encoding: "hosted input count",
-    label: "Google Gemini",
-    modelExamples: "Gemini 4 Argon",
-    accent: "blue",
-    countSource: "hosted_input_count",
-    supportsBoundaries: false,
-    sourceUrl: "https://ai.google.dev/api/tokens",
-  },
-  {
-    id: "grok-default",
-    provider: "xai",
-    encoding: "hosted tokenize-text",
-    label: "xAI Grok",
-    modelExamples: "Grok 4.7",
-    accent: "coral",
-    countSource: "hosted_token_breakdown",
-    supportsBoundaries: true,
-    sourceUrl: "https://docs.x.ai/developers/rest-api-reference/inference/other",
-  },
-];
+export const HOSTED_MODEL_PROFILES: HostedModelProfile[] =
+  HOSTED_CATALOG_MODELS.map((model) => {
+    if (!isHostedProvider(model.provider)) {
+      throw new Error(`Unsupported hosted provider: ${model.provider}`);
+    }
+    return { ...model, provider: model.provider, enabled: true };
+  });
+
+const DEFAULT_HOSTED_MODEL_PROFILES = HOSTED_MODEL_PROFILES.filter((profile) =>
+  profile.id === "anthropic-default" ||
+  profile.id === "gemini-default" ||
+  profile.id === "grok-default"
+);
+
+interface HostedModelListItem {
+  id: string;
+  provider: HostedProvider;
+  upstream_model: string;
+  capability: "count_only" | "token_breakdown";
+  count_source: HostedCountSource;
+  enabled: boolean;
+}
+
+function isHostedProvider(value: unknown): value is HostedProvider {
+  return value === "anthropic" || value === "google" || value === "xai";
+}
+
+function humanizeModelId(value: string): string {
+  return value
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((part) => /^(ai|xai)$/i.test(part)
+      ? part.toUpperCase()
+      : part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function profileFromModelListItem(item: HostedModelListItem): HostedModelProfile {
+  const known = HOSTED_MODEL_PROFILES.find((profile) => profile.id === item.id);
+  if (known) {
+    const catalogModel = HOSTED_CATALOG_MODELS.find((model) => model.id === item.id);
+    return {
+      ...known,
+      encoding: item.upstream_model,
+      modelExamples: catalogModel?.upstreamModel === item.upstream_model
+        ? known.modelExamples
+        : humanizeModelId(item.upstream_model),
+      countSource: item.count_source,
+      supportsBoundaries: item.capability === "token_breakdown",
+      enabled: item.enabled,
+    };
+  }
+
+  const provider = providerCatalogEntry(item.provider);
+  return {
+    id: item.id,
+    kind: "hosted",
+    provider: item.provider,
+    encoding: item.upstream_model,
+    label: provider?.name ?? item.provider,
+    modelExamples: humanizeModelId(item.upstream_model),
+    accent: item.provider === "google" ? "blue" : "coral",
+    countSource: item.count_source,
+    supportsBoundaries: item.capability === "token_breakdown",
+    enabled: item.enabled,
+    sourceUrl: item.provider === "anthropic"
+      ? "https://platform.claude.com/docs/en/build-with-claude/token-counting"
+      : item.provider === "google"
+        ? "https://ai.google.dev/api/tokens"
+        : "https://docs.x.ai/developers/rest-api-reference/inference/other",
+  };
+}
+
+export function hostedProfilesFromModelPayload(value: unknown): HostedModelProfile[] {
+  if (!isRecord(value) || !Array.isArray(value.models)) {
+    throw new HostedApiError("INVALID_MODEL_CATALOG");
+  }
+
+  const ids = new Set<string>();
+  return value.models.map((candidate): HostedModelProfile => {
+    if (!isRecord(candidate)) throw new HostedApiError("INVALID_MODEL_CATALOG");
+    const capability = candidate.capability;
+    const countSource = candidate.count_source;
+    if (
+      typeof candidate.id !== "string" ||
+      !/^[a-z0-9][a-z0-9._-]{0,79}$/i.test(candidate.id) ||
+      ids.has(candidate.id) ||
+      !isHostedProvider(candidate.provider) ||
+      typeof candidate.upstream_model !== "string" ||
+      (capability !== "count_only" && capability !== "token_breakdown") ||
+      (countSource !== "hosted_message_count" &&
+        countSource !== "hosted_input_count" &&
+        countSource !== "hosted_token_breakdown") ||
+      typeof candidate.enabled !== "boolean"
+    ) {
+      throw new HostedApiError("INVALID_MODEL_CATALOG");
+    }
+    ids.add(candidate.id);
+    return profileFromModelListItem(candidate as unknown as HostedModelListItem);
+  });
+}
+
+export async function loadHostedModelProfiles(): Promise<HostedModelProfile[]> {
+  const configured = import.meta.env.PUBLIC_HOSTED_TOKENIZER_API_URL?.trim();
+  const endpoint = configured
+    ? `${configured.replace(/\/$/, "")}/api/v1/models`
+    : import.meta.env.DEV
+      ? "http://127.0.0.1:8787/api/v1/models"
+      : null;
+  if (!endpoint) return HOSTED_MODEL_PROFILES;
+
+  try {
+    const response = await fetch(endpoint, { headers: { accept: "application/json" } });
+    if (!response.ok) return HOSTED_MODEL_PROFILES;
+    return hostedProfilesFromModelPayload(await response.json());
+  } catch {
+    return HOSTED_MODEL_PROFILES;
+  }
+}
 
 export class HostedApiError extends Error {
   readonly code: string;
@@ -125,7 +216,7 @@ function writeSessionResult(text: string, result: HostedResult): void {
 
 export function readHostedSessionCache(
   text: string,
-  profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
+  profiles: readonly HostedModelProfile[] = DEFAULT_HOSTED_MODEL_PROFILES,
 ): HostedResult[] | null {
   const cached = profiles.map((profile) => readSessionResult(text, profile));
   return cached.every((result): result is HostedResult => result !== null)
@@ -182,11 +273,14 @@ function parseTokens(value: unknown): TokenPiece[] | null {
   });
 }
 
-function parseResult(value: unknown): HostedResult {
+function parseResult(
+  value: unknown,
+  profiles: readonly HostedModelProfile[],
+): HostedResult {
   if (!isRecord(value) || typeof value.requested_model !== "string") {
     throw new HostedApiError("INVALID_RESPONSE");
   }
-  const profile = HOSTED_MODEL_PROFILES.find(
+  const profile = profiles.find(
     (candidate) => candidate.id === value.requested_model,
   );
   if (!profile || (value.status !== "ok" && value.status !== "unavailable")) {
@@ -242,7 +336,7 @@ function parseResult(value: unknown): HostedResult {
 export async function compareHostedText(
   text: string,
   signal: AbortSignal,
-  profiles: readonly HostedModelProfile[] = HOSTED_MODEL_PROFILES,
+  profiles: readonly HostedModelProfile[] = DEFAULT_HOSTED_MODEL_PROFILES,
 ): Promise<HostedResult[]> {
   const cachedByProfile = new Map<string, HostedResult>();
   const missingProfiles: HostedModelProfile[] = [];
@@ -294,7 +388,7 @@ export async function compareHostedText(
     throw new HostedApiError("INVALID_RESPONSE");
   }
 
-  const results = body.results.map(parseResult);
+  const results = body.results.map((value) => parseResult(value, missingProfiles));
   const selectedResults = missingProfiles.map((profile) => {
     const result = results.find((candidate) => candidate.profile.id === profile.id);
     if (!result) throw new HostedApiError("INVALID_RESPONSE");

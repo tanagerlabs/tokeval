@@ -60,6 +60,20 @@ it("tokenizes only visible core model IDs when a selection is provided", async (
   expect(results.map((result) => result.profile.id)).toEqual(["openai-o200k"]);
 });
 
+it("maps multiple model identities onto one core tokenizer result", async () => {
+  const results = await tokenizeAll("Hello", [
+    "openai-o200k",
+    "openai-gpt-5-mini",
+  ]);
+
+  expect(results.map((result) => result.profile.id)).toEqual([
+    "openai-o200k",
+    "openai-gpt-5-mini",
+  ]);
+  expect(results[0]?.tokens).toEqual(results[1]?.tokens);
+  expect(results[1]?.profile.tokenizerId).toBe("openai-o200k");
+});
+
 describe("open-model token byte reconstruction", () => {
   it("reverses byte-level BPE pieces without losing split code points", () => {
     const input = "오늘 👋🏽";

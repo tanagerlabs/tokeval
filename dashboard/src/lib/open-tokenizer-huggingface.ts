@@ -17,7 +17,7 @@ const tokenizerCache = new Map<string, Promise<HuggingFaceTokenizer>>();
 async function loadTokenizer(
   profile: OpenModelTokenizerProfile,
 ): Promise<HuggingFaceTokenizer> {
-  const cached = tokenizerCache.get(profile.id);
+  const cached = tokenizerCache.get(profile.tokenizerId);
   if (cached) return cached;
 
   const pending = (async () => {
@@ -37,9 +37,11 @@ async function loadTokenizer(
     return new Tokenizer(tokenizerJson, tokenizerConfig) as HuggingFaceTokenizer;
   })();
 
-  tokenizerCache.set(profile.id, pending);
+  tokenizerCache.set(profile.tokenizerId, pending);
   void pending.catch(() => {
-    if (tokenizerCache.get(profile.id) === pending) tokenizerCache.delete(profile.id);
+    if (tokenizerCache.get(profile.tokenizerId) === pending) {
+      tokenizerCache.delete(profile.tokenizerId);
+    }
   });
   return pending;
 }
@@ -50,13 +52,20 @@ export async function tokenizeHuggingFaceModel(
 ): Promise<TokenizationResult> {
   const tokenizer = await loadTokenizer(profile);
   const encoded = tokenizer.encode(text, { add_special_tokens: false });
+  const inputBytes = utf8Encoder.encode(text).length;
+  if (!profile.supportsBoundaries) {
+    return {
+      ...makeOpenModelResult(profile, inputBytes, []),
+      tokenCount: encoded.ids.length,
+    };
+  }
   const tokens = piecesFromTokenStrings(
     text,
     encoded.ids,
     encoded.tokens,
     profile.decoder === "sentencepiece" ? "sentencepiece" : "byte_level",
   );
-  return makeOpenModelResult(profile, utf8Encoder.encode(text).length, tokens);
+  return makeOpenModelResult(profile, inputBytes, tokens);
 }
 
 export const HUGGINGFACE_MODEL_PROFILES = OPEN_MODEL_PROFILES.filter(
