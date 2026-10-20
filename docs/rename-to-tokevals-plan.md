@@ -147,11 +147,11 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 | §3 preconditions | attempted | 2026-10-20 | GitHub auth, both org roles, clean/pushed checkouts, and empty target org verified. Worker deployment history could not be queried without a non-interactive Cloudflare API token. |
 | §4 transfer + local rename | completed | 2026-10-20 | Three repositories transferred/renamed; remotes and local directories updated; old paths removed; Claude project memory copied. |
 | §5.1 library | completed | 2026-10-20 | Library branding, repository links, package/import naming, and prescribed `src/tokevals/` layout updated. |
-| §5.2 dashboard | planned | | Worker deploy sequence depends on §3 item 4 |
-| §5.3 research | planned | | |
-| §5.4 org profiles | planned | | |
-| §7 domain and site URL | planned | | blocked on domain registration |
-| §8 verification | planned | | |
+| §5.2 dashboard | attempted | 2026-10-20 | Code, package scopes, lockfiles, UI/metadata branding, repository links, Terraform labels, and Worker name updated; 93 tests and both builds pass. Cloudflare deployment/secrets/health remain unverified without API authentication. |
+| §5.3 research | completed | 2026-10-20 | Project name, slugs, package/layout references, and repository links updated; intentional venv path preserved. |
+| §5.4 org profiles | completed | 2026-10-20 | Tanager Labs parent profile updated and public `tokevals/.github` profile created with GitHub, site, and Hugging Face links. |
+| §7 domain and site URL | planned | | Blocked on registration of `tokevals.dev` and `tokevals.com`; existing `tokeval.dev` references intentionally remain. |
+| §8 verification | attempted | 2026-10-20 | GitHub redirects/layout, local paths/remotes, code branding, package names, profiles, tests/builds, rendered metadata, and secret scans pass. Worker live health/secrets and post-domain redirects remain pending. |
 
 ## 10. Rollback
 
