@@ -10,13 +10,13 @@ The lab, the organization, the flagship library, and the site all take the name 
 |---|---|---|---|
 | GitHub organization | `tanagerlabs` (parent company, keeps existing) | `tokevals` | **created**, empty |
 | Library repository | `tanagerlabs/tokeval` | `tokevals/tokevals` | planned |
-| Dashboard repository | `tanagerlabs/tokeval-dashboard` | `tokevals/tokevals-dashboard` | planned |
+| Explorer repository | `tanagerlabs/tokeval-dashboard` | `tokevals/tokevals-explorer` | transferred as `tokevals-dashboard` on 2026-10-20; second rename to `tokevals-explorer` in §12 (decided 2026-10-20: "Explorer" is the product name, "dashboard" was an implementation word) |
 | Research repository | `tanagerlabs/tokeval-research` | `tokevals/tokevals-research` | planned |
 | Org profile | `tanagerlabs/.github` (keeps, becomes parent listing) | `tokevals/.github` (new lab landing) | planned |
 | Hugging Face organization | — | `tokevals` | **created**, empty |
-| Site domain | tokeval.dev (owned, Route 53) | tokevals.dev, tokevals.com | **not yet registered**; blocked on AWS root sign-in support case, or register at Cloudflare Registrar instead |
+| Site domain | tokeval.dev (owned, Route 53) | tokevals.dev, tokevals.com; Explorer served at `/explorer/` (§7) | **not yet registered**; blocked on AWS root sign-in support case, or register at Cloudflare Registrar instead |
 | Python package | — | `tokevals` on PyPI | deferred: publish with the first real release, never a placeholder |
-| npm scope | `@tokeval/*` (package.json names only, never published) | `@tokevals/*` | org creation deferred by owner; package.json names change now |
+| npm scope | `@tokeval/*` (package.json names only, never published) | `@tokevals/explorer`, `@tokevals/hosted-tokenizer-worker` | org creation deferred by owner; package.json names change now |
 | Cloudflare Worker | `tokeval-tokenizer-api` | `tokevals-tokenizer-api` | planned, see §5 caveat |
 | Display name | "TokEval" | "TokEvals" | planned (assumption: same camel case; owner may override) |
 
@@ -122,9 +122,9 @@ gh repo create tokevals/.github --public --clone --description "TokEvals organiz
 
 Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (account already exists, requires Cloudflare nameservers) or Route 53 once the AWS support case is resolved. Then, one commit in the dashboard, `chore: move site to tokevals.dev`:
 
-1. `astro.config.mjs:70` `site` → `https://tokevals.dev`; `src/lib/site-metadata.ts:2` `SITE_URL` likewise. Canonical URLs, sitemap, and JSON-LD follow from these.
+1. `astro.config.mjs` `site` → `https://tokevals.dev` and add `base: "/explorer"`; `src/lib/site-metadata.ts` `SITE_URL` → `https://tokevals.dev/explorer/`. Canonical URLs, sitemap, and JSON-LD follow from these. Then fix every root-absolute reference so it resolves under the prefix (inventory as of 2026-10-20): `BaseLayout.astro` sitemap and favicon `href="/..."`; `404.astro` and `index.astro` `href="/"`; the fourteen `url("/logos/*.svg")` rules in `src/styles/global.css` (switch to relative `url("logos/...")` or a CSS variable built from `import.meta.env.BASE_URL`); `src/pages/robots.txt.ts` and `sitemap.xml.ts` output paths. The dev-only `"/api"` proxy in `astro.config.mjs` and `hosted-tokenizer.ts` is unaffected (`PUBLIC_HOSTED_TOKENIZER_API_URL` is absolute in production). Verify with `npm run build && npm run preview` opened at `/explorer/`: no 404s in the network panel.
 2. Production `ALLOWED_ORIGINS` on the Worker gains `https://tokevals.dev` (and `https://www.tokevals.dev` if served). Set via `wrangler.jsonc` vars or deploy-time config, not committed secrets.
-3. Hosting: serve the built site at tokevals.dev through the same static hosting as tokeval.dev; `tokevals.com` 301 → `tokevals.dev`; `tokeval.dev` 301 → `tokevals.dev` with paths preserved. Keep tokeval.dev registered indefinitely; it is the old brand and a typo target.
+3. Hosting: upload the build to the `explorer/` prefix of the tokevals.dev static host. Redirects: `tokevals.dev/` → `/explorer/` (302 until the root lab site exists, see §11); `tokevals.com/*` 301 → `tokevals.dev/*`; `tokeval.dev/*` 301 → `tokevals.dev/explorer/*`, since the whole old site was the Explorer. Keep tokeval.dev registered indefinitely; it is the old brand and a typo target.
 4. Replace remaining `tokeval.dev` links in the three READMEs, both org profiles, and `tanagerlabs/.github`.
 5. If Search Console is set up for tokeval.dev, file a change of address after the redirect is live.
 
@@ -138,7 +138,7 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 - [ ] Worker: `/health` responds at the new name; if the old Worker existed, it is deleted and all secrets are set on the new one (`npx wrangler secret list`).
 - [ ] Org profiles render at `github.com/tokevals` and `github.com/tanagerlabs` with correct links.
 - [ ] Local: `~/projects/tokevals{,-dashboard,-research}` exist, remotes point at `tokevals/`, `/data/projects/tokevals` symlink resolves, old names gone.
-- [ ] After §7: `curl -sI https://tokeval.dev/` is a 301 to `https://tokevals.dev/`; sitemap URLs use the new host.
+- [ ] After §7: `curl -sI https://tokeval.dev/` is a 301 to `https://tokevals.dev/explorer/`; `https://tokevals.dev/` redirects to `/explorer/`; sitemap and canonical URLs use `https://tokevals.dev/explorer/...`; every asset and internal link resolves under the prefix.
 
 ## 9. Progress
 
@@ -156,3 +156,47 @@ Owner first registers `tokevals.dev` and `tokevals.com`. Cloudflare Registrar (a
 ## 10. Rollback
 
 Transfers reverse with the same API call (`new_owner=tanagerlabs`, old `new_name`). Everything else is one commit per repository and reverts with `git revert`. A renamed Worker is rolled back by redeploying under the old name and re-entering secrets.
+
+## 11. Follow-ups (not part of this plan)
+
+- **Root lab site.** A `tokevals/tokevals.dev` repository (named after the domain) owning the landing page and `/docs`, `/research`, `/models` sections, pulling from the other repositories at build time. Until it exists the root of tokevals.dev redirects to `/explorer/`.
+- **Embeddable `TokenComparer` package** published from the Explorer repository once the npm org exists.
+- **PyPI `tokevals`** with the first real library release.
+
+## 12. Step 4 — Rename `tokevals-dashboard` → `tokevals-explorer` (planned 2026-10-20)
+
+Decided after §4–§5 had already completed under the `tokevals-dashboard` name. This is a second, smaller rename: one repository slug, one package name, one local directory, and the references listed below. The Worker name `tokevals-tokenizer-api` and the §6 identifiers do not change. Precondition: the Explorer checkout is clean and pushed, and no agent is working in it.
+
+### 12.1 Repository and local checkout
+
+```sh
+gh repo rename tokevals-explorer -R tokevals/tokevals-dashboard --yes
+cd ~/projects
+git -C tokevals-dashboard remote set-url origin git@github.com:tokevals/tokevals-explorer.git
+mv tokevals-dashboard tokevals-explorer
+git -C tokevals-explorer fetch origin && git -C tokevals-explorer status -sb
+```
+
+GitHub redirects `tokevals/tokevals-dashboard` to the new name, so nothing breaks while the references below are updated. Update the repository description to "TokEvals Explorer: byte-safe tokenizer comparison and hosted-count Worker" (`gh repo edit tokevals/tokevals-explorer --description ...`). Re-root tmux windows and editor sessions.
+
+### 12.2 References (exact inventory as of 2026-10-20; re-grep before editing)
+
+One commit per repository, `chore: rename dashboard to explorer`. In every file replace `tokevals/tokevals-dashboard` → `tokevals/tokevals-explorer` and the bare slug `tokevals-dashboard` → `tokevals-explorer`.
+
+| Repository | Files |
+|---|---|
+| `tokevals/tokevals-explorer` | `README.md:52`; `src/components/GitHubLink.astro:3`; `src/lib/site-metadata.ts:3`; `docs/dashboard-plan.md:111` and `docs/server-architecture.md:193` tree roots; `package.json:2` `@tokevals/dashboard` → `@tokevals/explorer`, then `npm install` so `package-lock.json` follows (commit it). Rename `docs/dashboard-plan.md` → `docs/explorer-plan.md` with `git mv` and update its title line and any inbound links. Prose "dashboard" describing the product in `README.md`, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, and the two docs may become "Explorer" where it reads naturally; leave the word where it means the generic UI concept. |
+| `tokevals/tokevals` | `README.md:46`; `CLAUDE.md:23`; `CONTRIBUTING.md:8`; `AGENTS.md:48`; `PROJECT_CONTEXT.md:11`; this plan's §8 checklist line listing repository names. |
+| `tokevals/tokevals-research` | `README.md:30`; `CLAUDE.md:23`; `PROJECT_CONTEXT.md:7`, `:174` (layout tree entry `tokevals-explorer/`), `:185`. |
+| `tokevals/.github` | `profile/README.md:17` link target (label already says `tokevals-explorer`). |
+| `tanagerlabs/.github` | `profile/README.md:15` link target. |
+
+### 12.3 Verification
+
+- [ ] `gh repo view tokevals/tokevals-explorer` succeeds; `curl -sI https://github.com/tokevals/tokevals-dashboard | head -1` is a 301.
+- [ ] Across all five repositories `git grep -n "tokevals-dashboard\|@tokevals/dashboard"` prints nothing except historical notes in this plan.
+- [ ] Explorer: `npm ci && npm test && npm run build` passes; `server`: `npm ci && npm test && npm run build` passes; `package-lock.json` root name is `@tokevals/explorer`; the header link opens `tokevals/tokevals-explorer`.
+- [ ] Local: `~/projects/tokevals-explorer` exists with the new remote; `~/projects/tokevals-dashboard` is gone.
+- [ ] Both org profiles render with the new link.
+
+Add a row for this step to §9 when attempted.
