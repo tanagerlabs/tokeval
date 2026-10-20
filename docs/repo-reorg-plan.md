@@ -196,9 +196,9 @@ Each step is reversible until Step 5 is pushed. Transfer back: `gh api -X POST r
 | 3 Extract dashboard | completed | 2026-10-20 | History-preserving extraction published at `tanagerlabs/tokeval-dashboard`; tests and builds passed. |
 | 4 Create research repo | completed | 2026-10-20 | Research context, environment snapshots, configs/writeups guidance published on `main`. |
 | 5 Reduce library repo | completed | 2026-10-20 | Dashboard and research trees removed; root guidance scoped to the unstarted Python library. |
-| 6 Org profile | planned | | |
-| 7 Workstation cleanup | planned | | |
-| §6 verification | planned | | |
+| 6 Org profile | completed | 2026-10-20 | Public `.github` repository published with the three-repository map and tokeval.dev link. |
+| 7 Workstation cleanup | completed | 2026-10-20 | Sibling checkouts created; `.dev.vars` copied byte-for-byte, mode 600, and ignored; old dashboard directory moved to trash. |
+| §6 verification | completed | 2026-10-20 | Four public `main` repositories, redirect, history, scoped contents, README links, secret scans, and clean worktrees verified. Dev server intentionally not launched per owner instruction; production build and generated source link verified instead. |
 
 ## 9. Follow-ups (not part of this plan)
 
