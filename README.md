@@ -20,7 +20,9 @@ TokEval is an open-source research and engineering project for measuring, explai
 - Treat every claimed improvement as a result to demonstrate, not an assumption.
 
 
-For more info, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+For more info, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). Changes are
+welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains the model catalog,
+tokenizer integrations, hosted providers, and required verification.
 
 ## Dashboard development
 

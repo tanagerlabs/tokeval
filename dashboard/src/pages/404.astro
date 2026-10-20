@@ -1,0 +1,19 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Page not found"
+  description="The requested TokEval page could not be found. Return to the AI tokenizer comparison explorer."
+  indexable={false}
+>
+  <main class="not-found">
+    <p class="eyebrow">404</p>
+    <h1>Page not found</h1>
+    <p>
+      That address does not match a TokEval page. Return to the explorer to
+      compare token counts and tokenizer efficiency across AI models.
+    </p>
+    <a href="/">Open the tokenizer comparison</a>
+  </main>
+</BaseLayout>

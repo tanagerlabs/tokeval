@@ -1,4 +1,5 @@
 ---
+import ExplorerGuide from "../components/ExplorerGuide.astro";
 import { TokenComparer } from "../components/TokenComparer";
 import GitHubLink from "../components/GitHubLink.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
@@ -6,57 +7,79 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { INITIAL_HOSTED_RESULTS } from "../lib/initial-hosted-results";
 import { INITIAL_RESULTS, INITIAL_TEXT } from "../lib/initial-tokenization";
 import { loadHostedModelProfiles } from "../lib/hosted-tokenizer";
+import {
+  HOME_DESCRIPTION,
+  HOME_TITLE,
+  SOURCE_URL,
+  TOKENIZER_FAQS,
+} from "../lib/site-metadata";
 
-const description =
-  "Compare multilingual token counts and available breakdowns across leading hosted and open-weight model providers.";
 const currentYear = new Date().getFullYear();
 const hostedProfiles = await loadHostedModelProfiles();
 ---
 
-<BaseLayout title="Multilingual Token Explorer" description={description}>
+<BaseLayout
+  title={HOME_TITLE}
+  description={HOME_DESCRIPTION}
+  faqItems={TOKENIZER_FAQS}
+>
   <div class="page-shell">
+    <a class="skip-link" href="#main-content">Skip to token comparison</a>
     <header class="site-header">
-      <a class="wordmark" href="/">TokEval</a>
+      <a class="wordmark" href="/" aria-label="TokEval home">TokEval</a>
       <nav class="site-header__actions" aria-label="Site links">
+        <a class="site-header__link" href="#methodology">How it works</a>
+        <a class="site-header__link" href="#supported-models">Models</a>
         <GitHubLink />
         <ThemeToggle />
       </nav>
     </header>
 
-    <main>
+    <main id="main-content">
       <section class="intro" aria-labelledby="page-title">
-        <h1 id="page-title">Tokenizer</h1>
+        <p class="eyebrow">Free multilingual token comparison</p>
+        <h1 id="page-title">Compare AI tokenizer efficiency</h1>
         <p>
-          See how model families from different providers break text into
-          tokens. Token IDs appear beneath each piece. Angle brackets indicate
-          a token containing only part of a UTF-8 character; exact bytes are
-          shown instead of invented text. Open-model vocabulary files are
-          downloaded from their pinned public repositories, cached by the
-          browser, and run in a local worker. Local rows do not send input to a
-          model API. Anthropic, Google, and xAI rows update automatically and
-          send the entered text to those providers through the TokEval server.
-          Plain-text local results come from pinned public tokenizer artifacts
-          using <a
-            href="https://www.npmjs.com/package/js-tiktoken/v/1.0.21"
-            target="_blank"
-            rel="noreferrer"
-          ><code>js-tiktoken@1.0.21</code></a>,
-          <code>@huggingface/tokenizers@0.2.0</code>, and
-          <code>@sctg/sentencepiece-js@1.3.3</code>. These are local tokenizer
-          outputs, not hosted inference or API token counts.
+          Enter the same text once to compare token counts across leading AI
+          model families. Inspect exact token pieces where they are available,
+          see which tokenizer represents your text most compactly, and explore
+          how Korean, English, mixed scripts, emoji, or code change the result.
+        </p>
+        <p class="intro__note">
+          Fewer tokens can preserve context space and may reduce token-based
+          input charges. It does not, by itself, establish model quality or
+          total serving cost.
         </p>
       </section>
 
-      <TokenComparer
-        client:load
-        initialText={INITIAL_TEXT}
-        initialResults={INITIAL_RESULTS}
-        initialHostedResults={INITIAL_HOSTED_RESULTS}
-        hostedProfiles={hostedProfiles}
-      />
+      <section class="tool-section" aria-labelledby="comparison-title">
+        <div class="tool-section__heading">
+          <h2 id="comparison-title">Compare model token counts</h2>
+          <p>
+            Results update as you type and rank the visible models from the
+            fewest displayed tokens to the most.
+          </p>
+        </div>
+        <TokenComparer
+          client:load
+          initialText={INITIAL_TEXT}
+          initialResults={INITIAL_RESULTS}
+          initialHostedResults={INITIAL_HOSTED_RESULTS}
+          hostedProfiles={hostedProfiles}
+        />
+      </section>
+
+      <ExplorerGuide />
     </main>
 
-    <footer class="site-footer">© TokEval {currentYear}</footer>
+    <footer class="site-footer">
+      <span>© TokEval {currentYear}</span>
+      <nav aria-label="Footer links">
+        <a href="#methodology">Methodology</a>
+        <a href="#faq">FAQ</a>
+        <a href={SOURCE_URL}>Source</a>
+      </nav>
+    </footer>
   </div>
 </BaseLayout>
 
