@@ -4,8 +4,9 @@ This repository is reserved for the reusable Python evaluation library, which
 is currently in its initial setup phase. Read `PROJECT_CONTEXT.md` and
 `AGENTS.md` before making architectural or methodological changes.
 
-Explorer model/provider contributions belong in
-[`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer/blob/main/CONTRIBUTING.md).
+Public model-catalog contributions belong in
+[`tokevals/tokevals-lib`](https://github.com/tokevals/tokevals-lib/blob/main/CONTRIBUTING.md).
+The hosted Explorer implementation is private.
 Experiment configs, results, and writeups belong in
 [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 

@@ -19,8 +19,9 @@ This repository holds only the reusable Python TokEvals library. The package is
 currently unstarted; new plans target `src/tokevals/`, `tests/`,
 `configs/languages/`, and `pyproject.toml`.
 
-The Astro Explorer and Cloudflare Worker live in
-[`tokevals/tokevals-explorer`](https://github.com/tokevals/tokevals-explorer).
+The hosted Astro Explorer and Cloudflare Worker have a private implementation
+and are available at [tokeval.dev](https://tokeval.dev). The public model
+catalog lives in [`tokevals-lib`](https://github.com/tokevals/tokevals-lib).
 The program context, experiment configs, results, and writeups live in
 [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
 
