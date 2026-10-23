@@ -50,7 +50,7 @@ code points, so independent token decoding must never be assumed.
   [`PROJECT_CONTEXT.md`](https://github.com/tokevals/tokevals-research/blob/main/PROJECT_CONTEXT.md)
   is the program source of truth.
 
-The [TokEvals Explorer](https://tokeval.dev) is a hosted dashboard with a
+The [TokEvals Explorer](https://tokevals.dev) is a hosted dashboard with a
 private implementation.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before starting library work.

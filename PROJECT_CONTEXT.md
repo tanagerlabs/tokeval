@@ -8,6 +8,6 @@ lives at:
 
 This stub remains so existing links resolve. This repository contains only the
 reusable Python evaluation library. The hosted Explorer is at
-[tokeval.dev](https://tokeval.dev), and its implementation is private. The
+[tokevals.dev](https://tokevals.dev), and its implementation is private. The
 public model catalog lives in
 [`tokevals/tokevals-lib`](https://github.com/tokevals/tokevals-lib).

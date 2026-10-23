@@ -20,7 +20,7 @@ currently unstarted; new plans target `src/tokevals/`, `tests/`,
 `configs/languages/`, and `pyproject.toml`.
 
 The hosted Astro Explorer and Cloudflare Worker have a private implementation
-and are available at [tokeval.dev](https://tokeval.dev). The public model
+and are available at [tokevals.dev](https://tokevals.dev). The public model
 catalog lives in [`tokevals-lib`](https://github.com/tokevals/tokevals-lib).
 The program context, experiment configs, results, and writeups live in
 [`tokevals/tokevals-research`](https://github.com/tokevals/tokevals-research).
